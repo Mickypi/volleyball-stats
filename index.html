@@ -844,11 +844,22 @@ initPlayers();
 let piUser = null;
 
 async function piInit() {
+  setAuthStatus('Connexion à Pi Network...');
   try {
-    setAuthStatus('Connexion à Pi Network...');
+    // Pi.init doit être attendu complètement avant Pi.authenticate
     await Pi.init({ version: '2.0', sandbox: false });
-    await piAuthenticate(true);
   } catch(e) {
+    console.warn('Pi.init warning:', e);
+    // On continue quand même — Pi.authenticate doit toujours être appelé
+  }
+  // Pi.authenticate appelé quoi qu'il arrive après Pi.init
+  try {
+    const auth = await Pi.authenticate(['username'], onIncompletePaymentFound);
+    await validatePiToken(auth.accessToken);
+    piUser = { username: auth.user.username, uid: auth.user.uid, accessToken: auth.accessToken };
+    onPiAuthSuccess();
+  } catch(e) {
+    // Auth silencieuse échouée → afficher l'écran de connexion manuelle
     showPiAuthScreen();
   }
 }
