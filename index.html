@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Volley-Ball, My Team Simple Stats</title>
+<script src="https://sdk.minepi.com/pi-sdk.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif;background:#f5f5f0;color:#1a1a18;min-height:100vh;overflow-x:hidden}
@@ -15,6 +16,26 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-seri
 .btn-new-match{background:#185FA5;color:#E6F1FB;border:none;font-size:18px;font-weight:600;padding:18px 32px;border-radius:16px;cursor:pointer;font-family:inherit;box-shadow:0 4px 20px rgba(24,95,165,0.3);width:100%;max-width:320px;display:inline-flex;align-items:center;justify-content:center;gap:10px}
 .btn-new-match:active{transform:scale(0.97)}
 .splash-version{font-size:11px;color:#ccc;margin-top:28px}
+
+/* PI AUTH */
+#pi-auth-screen{display:none;min-height:100vh;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;text-align:center;background:linear-gradient(160deg,#EEF4FB 0%,#f5f5f0 60%)}
+#pi-auth-screen.active{display:flex}
+.pi-logo-wrap{margin-bottom:20px}
+.pi-logo-wrap img{width:min(260px,75vw);height:auto;filter:drop-shadow(0 4px 20px rgba(24,95,165,0.18))}
+.pi-auth-title{font-size:18px;font-weight:600;color:#1a1a18;margin-bottom:8px}
+.pi-auth-sub{font-size:13px;color:#888;margin-bottom:36px;line-height:1.6}
+.pi-signin-btn{background:#6B21A8;color:#fff;border:none;font-size:16px;font-weight:600;padding:16px 32px;border-radius:14px;cursor:pointer;font-family:inherit;width:100%;max-width:300px;display:inline-flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 4px 18px rgba(107,33,168,0.3)}
+.pi-signin-btn:active{transform:scale(0.97)}
+.pi-signin-btn:disabled{opacity:0.5;cursor:default}
+.pi-auth-status{font-size:12px;color:#888;margin-top:18px;min-height:20px}
+.pi-auth-error{font-size:13px;color:#A32D2D;background:#FCEBEB;border-radius:8px;padding:10px 14px;margin-top:16px;max-width:300px;display:none}
+.pi-auth-error.show{display:block}
+
+/* Bandeau utilisateur connecté */
+.pi-user-bar{display:flex;align-items:center;gap:8px;background:#F3E8FF;border-radius:10px;padding:8px 12px;margin-bottom:12px}
+.pi-user-avatar{width:28px;height:28px;border-radius:50%;background:#7E22CE;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0}
+.pi-user-name{font-size:13px;font-weight:500;color:#6B21A8;flex:1}
+.pi-signout-btn{font-size:11px;color:#888;background:none;border:none;cursor:pointer;font-family:inherit;padding:2px 6px}
 #app{max-width:480px;margin:0 auto;padding:12px 14px 48px}
 h2{font-size:19px;font-weight:600;color:#1a1a18;margin-bottom:1rem}
 h3{font-size:16px;font-weight:500;color:#1a1a18}
@@ -158,6 +179,18 @@ input:focus{outline:none;border-color:#185FA5;box-shadow:0 0 0 3px rgba(24,95,16
 
 <div class="flash" id="flash"></div>
 
+<!-- PI AUTH SCREEN -->
+<div id="pi-auth-screen" class="screen active">
+  <div class="pi-logo-wrap">
+    <img src="Logo_Appli_Volley.png" alt="Volley-Ball My Team Simple Stats" onerror="this.style.display='none'">
+  </div>
+  <div class="pi-auth-title">Volley-Ball · My Team Simple Stats</div>
+  <div class="pi-auth-sub">Connecte-toi avec ton compte Pi Network<br>pour accéder à l'application</div>
+  <button class="pi-signin-btn" id="pi-signin-btn" onclick="piSignIn()">🟣 Se connecter avec Pi</button>
+  <div class="pi-auth-status" id="pi-auth-status"></div>
+  <div class="pi-auth-error" id="pi-auth-error"></div>
+</div>
+
 <div class="error-popup" id="error-popup">
   <div class="error-box">
     <div class="error-icon">⚠️</div>
@@ -184,7 +217,12 @@ input:focus{outline:none;border-color:#185FA5;box-shadow:0 0 0 3px rgba(24,95,16
   </div>
 </div>
 
-<div id="screen-splash" class="screen active">
+<div id="screen-splash" class="screen">
+  <div id="pi-user-bar-splash" class="pi-user-bar" style="display:none;max-width:320px;width:100%;margin-bottom:20px">
+    <div class="pi-user-avatar" id="pi-avatar">?</div>
+    <span class="pi-user-name" id="pi-username-splash">—</span>
+    <button class="pi-signout-btn" onclick="piSignOut()">Déconnexion</button>
+  </div>
   <img class="splash-logo" src="Logo_Appli_Volley.png" alt="Volley-Ball My Team Simple Stats" onerror="this.style.display='none';document.getElementById('splash-fallback').style.display='block'">
   <div id="splash-fallback" style="display:none;font-size:26px;font-weight:700;color:#185FA5;margin-bottom:8px">🏐 Volley-Ball</div>
   <div class="splash-tagline">My Team Simple Stats</div>
@@ -799,6 +837,90 @@ function resetMatch(){
 }
 
 initPlayers();
+
+/* ============================================================
+   PI NETWORK AUTHENTICATION
+   ============================================================ */
+let piUser = null;
+
+async function piInit() {
+  try {
+    setAuthStatus('Connexion à Pi Network...');
+    await Pi.init({ version: '2.0', sandbox: false });
+    await piAuthenticate(true);
+  } catch(e) {
+    showPiAuthScreen();
+  }
+}
+
+async function piAuthenticate(silent) {
+  try {
+    if(!silent) {
+      document.getElementById('pi-signin-btn').disabled = true;
+      setAuthStatus('Authentification en cours...');
+    }
+    const auth = await Pi.authenticate(['username'], onIncompletePaymentFound);
+    await validatePiToken(auth.accessToken);
+    piUser = { username: auth.user.username, uid: auth.user.uid, accessToken: auth.accessToken };
+    onPiAuthSuccess();
+  } catch(e) {
+    if(!silent) {
+      showAuthError('Connexion échouée. Assure-toi d\'utiliser le Pi Browser.');
+      document.getElementById('pi-signin-btn').disabled = false;
+      setAuthStatus('');
+    } else {
+      showPiAuthScreen();
+    }
+  }
+}
+
+async function validatePiToken(accessToken) {
+  try {
+    const res = await fetch('https://api.minepi.com/v2/me', {
+      headers: { 'Authorization': 'Bearer ' + accessToken }
+    });
+    if(!res.ok) throw new Error('Token invalide');
+  } catch(e) {
+    // Mode dégradé si réseau indisponible
+    console.warn('Validation token Pi ignorée (réseau) :', e.message);
+  }
+}
+
+function onIncompletePaymentFound(payment) {
+  console.log('Paiement incomplet :', payment);
+}
+
+function onPiAuthSuccess() {
+  const bar = document.getElementById('pi-user-bar-splash');
+  document.getElementById('pi-avatar').textContent = piUser.username.charAt(0).toUpperCase();
+  document.getElementById('pi-username-splash').textContent = '@' + piUser.username;
+  bar.style.display = 'flex';
+  document.getElementById('pi-auth-screen').classList.remove('active');
+  document.getElementById('screen-splash').classList.add('active');
+  setAuthStatus('');
+}
+
+function showPiAuthScreen() {
+  document.getElementById('pi-auth-screen').classList.add('active');
+  setAuthStatus('');
+}
+
+function piSignIn() { hideAuthError(); piAuthenticate(false); }
+
+function piSignOut() {
+  piUser = null;
+  document.getElementById('pi-user-bar-splash').style.display = 'none';
+  document.getElementById('screen-splash').classList.remove('active');
+  document.getElementById('screen-app').classList.remove('active');
+  showPiAuthScreen();
+}
+
+function setAuthStatus(msg) { document.getElementById('pi-auth-status').textContent = msg; }
+function showAuthError(msg) { const el=document.getElementById('pi-auth-error'); el.textContent=msg; el.classList.add('show'); }
+function hideAuthError() { document.getElementById('pi-auth-error').classList.remove('show'); }
+
+// Démarrage
+piInit();
 </script>
 </body>
 </html>
