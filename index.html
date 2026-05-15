@@ -36,6 +36,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-seri
 .pi-user-avatar{width:28px;height:28px;border-radius:50%;background:#7E22CE;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0}
 .pi-user-name{font-size:13px;font-weight:500;color:#6B21A8;flex:1}
 .pi-signout-btn{font-size:11px;color:#888;background:none;border:none;cursor:pointer;font-family:inherit;padding:2px 6px}
+
+/* PAYMENT MODAL */
+.pay-modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:300;align-items:center;justify-content:center;padding:20px}
+.pay-modal-overlay.active{display:flex}
+.pay-modal{background:#fff;border-radius:16px;padding:24px 20px;width:100%;max-width:340px;text-align:center}
+.pay-modal-icon{font-size:36px;margin-bottom:10px}
+.pay-modal-title{font-size:17px;font-weight:600;color:#1a1a18;margin-bottom:6px}
+.pay-modal-desc{font-size:13px;color:#888;margin-bottom:20px;line-height:1.5}
+.pay-modal-price{display:inline-block;background:#F3E8FF;color:#6B21A8;border-radius:8px;padding:6px 16px;font-size:16px;font-weight:700;margin-bottom:20px}
+.pay-btn-pi{width:100%;padding:13px;border-radius:10px;border:none;background:#6B21A8;color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:8px}
+.pay-btn-pi:active{transform:scale(0.97)}
+.pay-btn-pi:disabled{opacity:0.5;cursor:default}
+.pay-btn-cancel{width:100%;padding:11px;border-radius:10px;border:0.5px solid rgba(0,0,0,0.15);background:#f0eeea;color:#888;font-size:14px;cursor:pointer;font-family:inherit}
+.pay-status{font-size:12px;color:#888;margin-top:10px;min-height:18px}
+.pay-error{font-size:13px;color:#A32D2D;background:#FCEBEB;border-radius:8px;padding:8px 12px;margin-top:10px;display:none}
+.pay-error.show{display:block}
 #app{max-width:480px;margin:0 auto;padding:12px 14px 48px}
 h2{font-size:19px;font-weight:600;color:#1a1a18;margin-bottom:1rem}
 h3{font-size:16px;font-weight:500;color:#1a1a18}
@@ -322,13 +338,27 @@ input:focus{outline:none;border-color:#185FA5;box-shadow:0 0 0 3px rgba(24,95,16
       <div id="sets-list-final" style="margin-bottom:16px"></div>
       <div id="stats-final"></div>
       <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
-        <button class="pdf-btn" onclick="exportPDF()">📄 Télécharger PDF complet (tous les sets)</button>
+        <button class="pdf-btn" onclick="openPayModal('all')">📄 Télécharger PDF complet (tous les sets) — 3 Pi</button>
         <button class="btn btn-sm" style="border-color:#A32D2D;color:#A32D2D" onclick="resetMatch()">↺ Nouveau match</button>
       </div>
     </div>
   </div>
 
 </div>
+</div>
+
+<!-- PAYMENT MODAL -->
+<div class="pay-modal-overlay" id="pay-modal">
+  <div class="pay-modal">
+    <div class="pay-modal-icon">📄</div>
+    <div class="pay-modal-title" id="pay-modal-title">Exporter en PDF</div>
+    <div class="pay-modal-desc" id="pay-modal-desc">Télécharger les statistiques en PDF</div>
+    <div class="pay-modal-price" id="pay-modal-price">1 π Pi</div>
+    <button class="pay-btn-pi" id="pay-btn" onclick="confirmPayment()">🟣 Payer avec Pi</button>
+    <button class="pay-btn-cancel" onclick="closePayModal()">Annuler</button>
+    <div class="pay-status" id="pay-status"></div>
+    <div class="pay-error" id="pay-error"></div>
+  </div>
 </div>
 
 <script>
@@ -677,7 +707,7 @@ function renderSets(){
     return'<div class="set-row"><div><div style="font-weight:500">Set '+(i+1)+(i>=4?' 🏆':'')+'</div><div style="font-size:12px;color:#888">'+(win!=='Égalité'?'Gagné : '+win:'Égalité')+'</div></div>'
       +'<div class="set-actions"><div style="font-size:22px;font-weight:600">'+s.us+' – '+s.them+'</div>'
       +'<button class="edit-set-btn" onclick="openScoreModal(\'edit\','+i+')" title="Modifier">✏️</button>'
-      +'<button class="btn btn-sm" onclick="exportSetPDF('+i+')" style="font-size:11px;padding:5px 9px" title="PDF">📄</button>'
+      +'<button class="btn btn-sm" onclick="openPayModal(\'set\','+i+')" style="font-size:11px;padding:5px 9px" title="PDF">📄 1π</button>'
       +'</div></div>';
   }).join('');
 }
@@ -854,7 +884,7 @@ async function piInit() {
   }
   // Pi.authenticate appelé quoi qu'il arrive après Pi.init
   try {
-    const auth = await Pi.authenticate(['username'], onIncompletePaymentFound);
+    const auth = await Pi.authenticate(['username', 'payments'], onIncompletePaymentFound);
     await validatePiToken(auth.accessToken);
     piUser = { username: auth.user.username, uid: auth.user.uid, accessToken: auth.accessToken };
     onPiAuthSuccess();
@@ -870,7 +900,7 @@ async function piAuthenticate(silent) {
       document.getElementById('pi-signin-btn').disabled = true;
       setAuthStatus('Authentification en cours...');
     }
-    const auth = await Pi.authenticate(['username'], onIncompletePaymentFound);
+    const auth = await Pi.authenticate(['username', 'payments'], onIncompletePaymentFound);
     await validatePiToken(auth.accessToken);
     piUser = { username: auth.user.username, uid: auth.user.uid, accessToken: auth.accessToken };
     onPiAuthSuccess();
@@ -897,9 +927,7 @@ async function validatePiToken(accessToken) {
   }
 }
 
-function onIncompletePaymentFound(payment) {
-  console.log('Paiement incomplet :', payment);
-}
+
 
 function onPiAuthSuccess() {
   const bar = document.getElementById('pi-user-bar-splash');
@@ -929,6 +957,116 @@ function piSignOut() {
 function setAuthStatus(msg) { document.getElementById('pi-auth-status').textContent = msg; }
 function showAuthError(msg) { const el=document.getElementById('pi-auth-error'); el.textContent=msg; el.classList.add('show'); }
 function hideAuthError() { document.getElementById('pi-auth-error').classList.remove('show'); }
+
+/* ============================================================
+   PI PAYMENTS
+   ============================================================ */
+const BACKEND = 'https://volleyball-stats-five.vercel.app';
+let pendingPDF = { type: null, setIdx: null }; // ce qu'on veut exporter après paiement
+
+function openPayModal(type, setIdx) {
+  pendingPDF = { type, setIdx: setIdx != null ? setIdx : null };
+  const isFull = type === 'all';
+  document.getElementById('pay-modal-title').textContent = isFull ? 'PDF complet — tous les sets' : 'PDF — Set ' + (setIdx + 1);
+  document.getElementById('pay-modal-desc').textContent = isFull
+    ? 'Exporter les statistiques complètes du match en PDF'
+    : 'Exporter les statistiques du set ' + (setIdx + 1) + ' en PDF';
+  document.getElementById('pay-modal-price').textContent = isFull ? '3 π Pi' : '1 π Pi';
+  document.getElementById('pay-btn').disabled = false;
+  document.getElementById('pay-status').textContent = '';
+  document.getElementById('pay-error').classList.remove('show');
+  document.getElementById('pay-modal').classList.add('active');
+}
+
+function closePayModal() {
+  document.getElementById('pay-modal').classList.remove('active');
+}
+
+async function confirmPayment() {
+  const isFull = pendingPDF.type === 'all';
+  const amount = isFull ? 3 : 1;
+  const memo = isFull ? 'PDF complet match volley' : 'PDF set ' + (pendingPDF.setIdx + 1) + ' volley';
+  const metadata = { type: pendingPDF.type, setIdx: pendingPDF.setIdx, user: piUser ? piUser.username : '' };
+
+  document.getElementById('pay-btn').disabled = true;
+  document.getElementById('pay-error').classList.remove('show');
+  setPayStatus('Initialisation du paiement...');
+
+  try {
+    await Pi.createPayment({
+      amount,
+      memo,
+      metadata
+    }, {
+      onReadyForServerApproval: async (paymentId) => {
+        setPayStatus('Approbation en cours...');
+        try {
+          const res = await fetch(BACKEND + '/api/approve', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ paymentId })
+          });
+          if (!res.ok) throw new Error('Approbation échouée');
+        } catch(e) {
+          showPayError('Erreur lors de l\'approbation : ' + e.message);
+          document.getElementById('pay-btn').disabled = false;
+        }
+      },
+      onReadyForServerCompletion: async (paymentId, txid) => {
+        setPayStatus('Finalisation du paiement...');
+        try {
+          const res = await fetch(BACKEND + '/api/complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ paymentId, txid })
+          });
+          if (!res.ok) throw new Error('Complétion échouée');
+          // Paiement réussi → générer le PDF
+          setPayStatus('✓ Paiement confirmé !');
+          setTimeout(() => {
+            closePayModal();
+            if (pendingPDF.type === 'all') exportPDF();
+            else exportSetPDF(pendingPDF.setIdx);
+          }, 800);
+        } catch(e) {
+          showPayError('Erreur lors de la finalisation : ' + e.message);
+          document.getElementById('pay-btn').disabled = false;
+        }
+      },
+      onCancel: (paymentId) => {
+        setPayStatus('');
+        showPayError('Paiement annulé.');
+        document.getElementById('pay-btn').disabled = false;
+      },
+      onError: (error, payment) => {
+        setPayStatus('');
+        showPayError('Erreur Pi : ' + (error.message || error));
+        document.getElementById('pay-btn').disabled = false;
+      }
+    });
+  } catch(e) {
+    setPayStatus('');
+    showPayError('Erreur : ' + e.message);
+    document.getElementById('pay-btn').disabled = false;
+  }
+}
+
+async function onIncompletePaymentFound(payment) {
+  // Compléter un paiement en cours interrompu
+  console.log('Paiement incomplet trouvé, complétion en cours :', payment.identifier);
+  try {
+    await fetch(BACKEND + '/api/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paymentId: payment.identifier, txid: payment.transaction && payment.transaction.txid })
+    });
+  } catch(e) {
+    console.warn('Impossible de compléter le paiement incomplet :', e.message);
+  }
+}
+
+function setPayStatus(msg) { document.getElementById('pay-status').textContent = msg; }
+function showPayError(msg) { const el = document.getElementById('pay-error'); el.textContent = msg; el.classList.add('show'); }
 
 // Démarrage
 piInit();
