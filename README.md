@@ -103,7 +103,7 @@ https://volleyball-stats-five.vercel.app
 
 ## 👨‍💻 Développement
 
-Application développée avec l'assistance de **Claude (Anthropic)** dans le cadre du programme **Pi Network App Studio**.
+Application développée par SPM & LB dans le cadre du programme **Pi Network App Studio**.
 
 ---
 
