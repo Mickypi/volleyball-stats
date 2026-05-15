@@ -16,6 +16,24 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-seri
 .btn-new-match{background:#185FA5;color:#E6F1FB;border:none;font-size:18px;font-weight:600;padding:18px 32px;border-radius:16px;cursor:pointer;font-family:inherit;box-shadow:0 4px 20px rgba(24,95,165,0.3);width:100%;max-width:320px;display:inline-flex;align-items:center;justify-content:center;gap:10px}
 .btn-new-match:active{transform:scale(0.97)}
 .splash-version{font-size:11px;color:#ccc;margin-top:28px}
+.btn-mes-matchs{background:transparent;color:#185FA5;border:1.5px solid #185FA5;font-size:15px;font-weight:500;padding:13px 32px;border-radius:14px;cursor:pointer;font-family:inherit;width:100%;max-width:320px;margin-top:10px;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn-mes-matchs:active{background:#E6F1FB}
+
+/* MES MATCHS */
+.match-card{background:#fff;border:0.5px solid rgba(0,0,0,0.1);border-radius:12px;padding:14px;margin-bottom:12px}
+.match-card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.match-card-teams{font-size:15px;font-weight:600;color:#1a1a18}
+.match-card-date{font-size:11px;color:#888}
+.match-card-score{font-size:13px;color:#0F6E56;font-weight:500;margin-bottom:10px}
+.match-card-status{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:500;margin-bottom:10px}
+.match-card-status.ongoing{background:#FEF3C7;color:#854F0B}
+.match-card-status.finished{background:#E1F5EE;color:#085041}
+.match-card-actions{display:flex;gap:8px;flex-wrap:wrap}
+.match-card-btn{padding:7px 12px;border-radius:8px;border:0.5px solid rgba(0,0,0,0.15);background:#f0eeea;font-size:13px;cursor:pointer;font-family:inherit;color:#1a1a18}
+.match-card-btn.primary{background:#185FA5;color:#E6F1FB;border-color:#185FA5}
+.match-card-btn.danger{background:#FCEBEB;color:#A32D2D;border-color:#F09595}
+.match-card-btn:active{transform:scale(0.97)}
+.no-matchs{text-align:center;padding:2rem 0;color:#888;font-size:14px}
 
 /* PI AUTH */
 #pi-auth-screen{display:none;min-height:100vh;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;text-align:center;background:linear-gradient(160deg,#EEF4FB 0%,#f5f5f0 60%)}
@@ -243,7 +261,20 @@ input:focus{outline:none;border-color:#185FA5;box-shadow:0 0 0 3px rgba(24,95,16
   <div id="splash-fallback" style="display:none;font-size:26px;font-weight:700;color:#185FA5;margin-bottom:8px">🏐 Volley-Ball</div>
   <div class="splash-tagline">My Team Simple Stats</div>
   <button class="btn-new-match" onclick="goSetup()">🏐 Nouveau Match</button>
+  <button class="btn-mes-matchs" onclick="showMesMatchs()">📋 Mes Matchs</button>
   <div class="splash-version">v1.0</div>
+</div>
+
+<!-- ÉCRAN MES MATCHS -->
+<div id="screen-mes-matchs" class="screen">
+<div id="app">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+    <button class="btn btn-sm" onclick="backToSplash()">← Retour</button>
+    <h2 style="margin-bottom:0">📋 Mes Matchs</h2>
+  </div>
+  <div class="hint">Jusqu'à <strong>4 matchs</strong> sauvegardés sur cet appareil. Les matchs les plus anciens sont remplacés en premier.</div>
+  <div id="mes-matchs-list"></div>
+</div>
 </div>
 
 <div id="screen-app" class="screen">
@@ -371,7 +402,7 @@ const GRADE_CLASSES={'++':'gp-pp','+':'gp-p','0':'gp-z','-':'gp-m'};
 const ACTIONS={service:'Service',reception:'Réception',attaque:'Attaque',bloc:'Bloc'};
 const LIBERO_ACTIONS=['reception'];
 
-let S={teamName:'',teamAdverse:'',players:[],sets:[],cur:0,sel:{player:null,action:null},statsFilter:'all',matchOver:false,changeLog:[]};
+let S={teamName:'',teamAdverse:'',players:[],sets:[],cur:0,sel:{player:null,action:null},statsFilter:'all',matchOver:false,changeLog:[],matchId:null};
 let changePanelOpen=false;
 let scoreModalMode='endset';
 let editSetIdx=-1;
@@ -407,6 +438,7 @@ function getSetsScore(){
 function goSetup(){
   document.getElementById('screen-splash').classList.remove('active');
   document.getElementById('screen-splash').style.display='none';
+  document.getElementById('screen-mes-matchs').classList.remove('active');
   document.getElementById('screen-app').classList.add('active');
 }
 
@@ -526,6 +558,7 @@ function selectAndValidate(g){
   S.sets[S.cur].log[S.sel.player][S.sel.action].push(g);
   S.sel.action=null;CATS.forEach(k=>document.getElementById('ab-'+k).classList.remove('selected'));
   renderLastActions();updateStepNums();showFlash('✓ Action enregistrée');
+  saveCurrentMatch(); // sauvegarde auto
 }
 function updateStepNums(){
   const s=S.sel;
@@ -619,6 +652,7 @@ function confirmScoreModal(){
   if(!res.ok){document.getElementById('score-error-msg').textContent=res.msg;document.getElementById('score-error-msg').classList.add('show');document.getElementById('score-us').classList.add('input-error');document.getElementById('score-them').classList.add('input-error');return;}
   S.sets[S.cur].us=us;S.sets[S.cur].them=them;
   showEndSetActions(us,them);
+  saveCurrentMatch(); // sauvegarde auto
 }
 function doNextSet(){
   document.getElementById('score-modal').classList.remove('active');
@@ -685,6 +719,7 @@ function renderStats(){
 /* ---- FIN DE MATCH ---- */
 function showEndMatch(){
   S.matchOver=true;
+  saveCurrentMatch(); // sauvegarde finale
   ['saisie','stats','sets'].forEach(t=>document.getElementById('tab-'+t).style.display='none');
   document.getElementById('endmatch-screen').style.display='block';
   const done=S.sets.filter(s=>s.us!==null);
@@ -854,9 +889,10 @@ function exportSetPDF(i){
 /* ---- RESET ---- */
 function resetMatch(){
   if(!confirm('Réinitialiser tout le match ?'))return;
-  S={teamName:'',teamAdverse:'',players:[],sets:[],cur:0,sel:{player:null,action:null},statsFilter:'all',matchOver:false,changeLog:[]};
+  S={teamName:'',teamAdverse:'',players:[],sets:[],cur:0,sel:{player:null,action:null},statsFilter:'all',matchOver:false,changeLog:[],matchId:null};
   changePanelOpen=false;
   document.getElementById('screen-match').classList.remove('active');
+  document.getElementById('screen-mes-matchs').classList.remove('active');
   document.getElementById('screen-setup').classList.add('active');
   document.getElementById('tab-saisie').style.display='block';
   document.getElementById('score-modal').classList.remove('active');
@@ -869,8 +905,112 @@ function resetMatch(){
 initPlayers();
 
 /* ============================================================
-   PI NETWORK AUTHENTICATION
+   SAUVEGARDE DES MATCHS (localStorage — 4 max)
    ============================================================ */
+const MAX_MATCHS = 4;
+const STORAGE_KEY = 'volleyball_matchs';
+
+function getSavedMatchs() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+  } catch(e) { return []; }
+}
+
+function saveCurrentMatch() {
+  if(!S.teamName && !S.teamAdverse) return; // rien à sauvegarder
+  const matchs = getSavedMatchs();
+  const now = new Date().toISOString();
+  const done = S.sets.filter(s=>s.us!==null);
+  const wUs = done.filter(s=>s.us>s.them).length;
+  const wThem = done.filter(s=>s.them>s.us).length;
+  const matchData = {
+    id: S.matchId || Date.now().toString(),
+    savedAt: now,
+    teamName: S.teamName,
+    teamAdverse: S.teamAdverse,
+    matchOver: S.matchOver,
+    setsScore: { us: wUs, them: wThem },
+    state: JSON.parse(JSON.stringify(S)) // deep copy
+  };
+  S.matchId = matchData.id;
+  // Chercher si ce match existe déjà
+  const existingIdx = matchs.findIndex(m => m.id === matchData.id);
+  if(existingIdx >= 0) {
+    matchs[existingIdx] = matchData;
+  } else {
+    // Si 4 matchs, supprimer le plus ancien
+    if(matchs.length >= MAX_MATCHS) matchs.shift();
+    matchs.push(matchData);
+  }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(matchs)); } catch(e) {}
+}
+
+function deleteMatch(id) {
+  if(!confirm('Supprimer ce match ?')) return;
+  const matchs = getSavedMatchs().filter(m => m.id !== id);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(matchs));
+  renderMesMatchs();
+  showFlash('Match supprimé');
+}
+
+function loadMatch(id) {
+  const matchs = getSavedMatchs();
+  const match = matchs.find(m => m.id === id);
+  if(!match) return;
+  // Restaurer l'état
+  S = match.state;
+  S.matchId = match.id;
+  // Retourner à l'app
+  document.getElementById('screen-mes-matchs').classList.remove('active');
+  document.getElementById('screen-app').classList.add('active');
+  document.getElementById('screen-setup').classList.remove('active');
+  document.getElementById('screen-match').classList.add('active');
+  if(S.matchOver) {
+    showEndMatch();
+  } else {
+    renderSaisie();
+  }
+  showFlash('Match chargé !');
+}
+
+function showMesMatchs() {
+  document.getElementById('screen-splash').classList.remove('active');
+  document.getElementById('screen-mes-matchs').classList.add('active');
+  renderMesMatchs();
+}
+
+function backToSplash() {
+  document.getElementById('screen-mes-matchs').classList.remove('active');
+  document.getElementById('screen-splash').classList.add('active');
+}
+
+function renderMesMatchs() {
+  const matchs = getSavedMatchs();
+  const cont = document.getElementById('mes-matchs-list');
+  if(!matchs.length) {
+    cont.innerHTML = '<div class="no-matchs">🏐<br><br>Aucun match sauvegardé pour l\'instant.<br>Lance un nouveau match pour commencer !</div>';
+    return;
+  }
+  // Afficher du plus récent au plus ancien
+  cont.innerHTML = [...matchs].reverse().map(m => {
+    const date = new Date(m.savedAt).toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    const status = m.matchOver ? 'finished' : 'ongoing';
+    const statusLabel = m.matchOver ? '✅ Terminé' : '⏳ En cours';
+    const scoreLabel = m.matchOver
+      ? m.teamName + ' <strong>' + m.setsScore.us + '</strong> – <strong>' + m.setsScore.them + '</strong> ' + m.teamAdverse
+      : 'Set ' + (m.state.cur + 1) + ' · ' + m.setsScore.us + ' – ' + m.setsScore.them + ' en sets';
+    return '<div class="match-card">'
+      + '<div class="match-card-header"><div class="match-card-teams">🔵 ' + escHtml(m.teamName) + ' vs ' + escHtml(m.teamAdverse) + ' 🔴</div><div class="match-card-date">' + date + '</div></div>'
+      + '<div class="match-card-status ' + status + '">' + statusLabel + '</div>'
+      + '<div class="match-card-score">' + scoreLabel + '</div>'
+      + '<div class="match-card-actions">'
+      + '<button class="match-card-btn primary" onclick="loadMatch(\'' + m.id + '\')">' + (m.matchOver ? '👁 Consulter' : '▶ Reprendre') + '</button>'
+      + '<button class="match-card-btn danger" onclick="deleteMatch(\'' + m.id + '\')">🗑 Supprimer</button>'
+      + '</div></div>';
+  }).join('');
+}
+
+// (sauvegarde auto branchée directement dans selectAndValidate)
 let piUser = null;
 
 async function piInit() {
@@ -920,7 +1060,7 @@ async function piAuthenticate(silent) {
 
 async function validatePiToken(accessToken) {
   try {
-    const res = await fetch('https://api.testnet.minepi.com/v2/me', {
+    const res = await fetch('https://api.minepi.com/v2/me', {
       headers: { 'Authorization': 'Bearer ' + accessToken }
     });
     if(!res.ok) throw new Error('Token invalide');
@@ -1002,6 +1142,7 @@ async function confirmPayment() {
       metadata
     }, {
       onReadyForServerApproval: async (paymentId) => {
+        console.log('onReadyForServerApproval reçu, paymentId:', paymentId);
         setPayStatus('Approbation en cours...');
         try {
           const res = await fetch(BACKEND + '/api/approve', {
@@ -1009,7 +1150,9 @@ async function confirmPayment() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ paymentId })
           });
-          if (!res.ok) throw new Error('Approbation échouée');
+          const data = await res.json();
+          console.log('Approve result:', res.status, data);
+          if (!res.ok) throw new Error('Approbation échouée : ' + JSON.stringify(data));
         } catch(e) {
           showPayError('Erreur lors de l\'approbation : ' + e.message);
           document.getElementById('pay-btn').disabled = false;

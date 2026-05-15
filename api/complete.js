@@ -28,7 +28,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const response = await fetch(`https://api.testnet.minepi.com/v2/payments/${paymentId}/complete`, {
+    const response = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/complete`, {
       method: 'POST',
       headers: {
         'Authorization': `Key ${API_KEY}`,
