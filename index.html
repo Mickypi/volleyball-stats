@@ -877,7 +877,7 @@ async function piInit() {
   setAuthStatus('Connexion à Pi Network...');
   try {
     // Pi.init doit être attendu complètement avant Pi.authenticate
-    await Pi.init({ version: '2.0', sandbox: false });
+    await Pi.init({ version: '2.0', sandbox: true });
   } catch(e) {
     console.warn('Pi.init warning:', e);
     // On continue quand même — Pi.authenticate doit toujours être appelé
@@ -917,7 +917,7 @@ async function piAuthenticate(silent) {
 
 async function validatePiToken(accessToken) {
   try {
-    const res = await fetch('https://api.minepi.com/v2/me', {
+    const res = await fetch('https://api.testnet.minepi.com/v2/me', {
       headers: { 'Authorization': 'Bearer ' + accessToken }
     });
     if(!res.ok) throw new Error('Token invalide');
