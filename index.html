@@ -875,12 +875,16 @@ let piUser = null;
 
 async function piInit() {
   setAuthStatus('Connexion à Pi Network...');
+  // Timeout de sécurité : si Pi.init bloque plus de 5s, on affiche l'écran manuellement
+  const initTimeout = setTimeout(() => {
+    showPiAuthScreen();
+  }, 5000);
   try {
-    // Pi.init doit être attendu complètement avant Pi.authenticate
     await Pi.init({ version: '2.0', sandbox: true });
+    clearTimeout(initTimeout);
   } catch(e) {
+    clearTimeout(initTimeout);
     console.warn('Pi.init warning:', e);
-    // On continue quand même — Pi.authenticate doit toujours être appelé
   }
   // Pi.authenticate appelé quoi qu'il arrive après Pi.init
   try {
@@ -889,7 +893,6 @@ async function piInit() {
     piUser = { username: auth.user.username, uid: auth.user.uid, accessToken: auth.accessToken };
     onPiAuthSuccess();
   } catch(e) {
-    // Auth silencieuse échouée → afficher l'écran de connexion manuelle
     showPiAuthScreen();
   }
 }
