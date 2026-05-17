@@ -407,7 +407,7 @@ input:focus{outline:none;border-color:#185FA5;box-shadow:0 0 0 3px rgba(24,95,16
       <div id="sets-list-final" style="margin-bottom:16px"></div>
       <div id="stats-final"></div>
       <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
-        <button class="pdf-btn" onclick="openPayModal('all')">📄 Télécharger PDF complet (tous les sets) — 3 Pi</button>
+        <button class="pdf-btn" onclick="openPayModal('all')">📄 Télécharger PDF complet (tous les sets) — 3 Test-Pi</button>
         <button class="btn btn-sm" style="border-color:#A32D2D;color:#A32D2D" onclick="resetMatch()">↺ Nouveau match</button>
       </div>
     </div>
@@ -419,11 +419,15 @@ input:focus{outline:none;border-color:#185FA5;box-shadow:0 0 0 3px rgba(24,95,16
 <!-- PAYMENT MODAL -->
 <div class="pay-modal-overlay" id="pay-modal">
   <div class="pay-modal">
-    <div class="pay-modal-icon">📄</div>
+    <div class="pay-modal-icon">📧</div>
     <div class="pay-modal-title" id="pay-modal-title">Exporter en PDF</div>
-    <div class="pay-modal-desc" id="pay-modal-desc">Télécharger les statistiques en PDF</div>
-    <div class="pay-modal-price" id="pay-modal-price">1 π Pi</div>
-    <button class="pay-btn-pi" id="pay-btn" onclick="confirmPayment()">🟣 Payer avec Pi</button>
+    <div class="pay-modal-desc" id="pay-modal-desc">Les statistiques seront envoyées par email au format PDF.</div>
+    <div class="pay-modal-price" id="pay-modal-price">1 π Test-Pi</div>
+    <div style="margin-bottom:12px;text-align:left">
+      <label style="font-size:12px;color:#888;display:block;margin-bottom:5px">📧 Adresse email de réception</label>
+      <input type="email" id="pay-email" placeholder="votre@email.com" style="width:100%;height:40px;font-size:14px;border:0.5px solid rgba(0,0,0,0.2);border-radius:8px;padding:0 10px;font-family:inherit;background:#fff;color:#1a1a18">
+    </div>
+    <button class="pay-btn-pi" id="pay-btn" onclick="confirmPayment()">🟣 Payer avec Test-Pi</button>
     <button class="pay-btn-cancel" onclick="closePayModal()">Annuler</button>
     <div class="pay-status" id="pay-status"></div>
     <div class="pay-error" id="pay-error"></div>
@@ -638,8 +642,8 @@ function openScoreModal(mode,setIdx){
   document.getElementById('score-modal-scoreinputs').style.display='block';
   document.getElementById('us-label').textContent='🔵 '+S.teamName;
   document.getElementById('them-label').textContent='🔴 '+S.teamAdverse;
-  document.getElementById('score-us').value=existing&&existing.us!==null?existing.us:(isTB?15:25);
-  document.getElementById('score-them').value=existing&&existing.them!==null?existing.them:(isTB?13:23);
+  document.getElementById('score-us').value=existing&&existing.us!==null?existing.us:0;
+  document.getElementById('score-them').value=existing&&existing.them!==null?existing.them:0;
   document.getElementById('score-error-msg').classList.remove('show');
   document.getElementById('score-winner-hint').innerHTML='';
   document.getElementById('score-us').classList.remove('input-error');
@@ -1016,11 +1020,31 @@ function loadMatch(id) {
   const matchs = getSavedMatchs();
   const match = matchs.find(m => m.id === id);
   if(!match) return;
-  // Restaurer l'état
+  // Restaurer l'état complet
   S = match.state;
   S.matchId = match.id;
-  // Retourner à l'app
+  // Réinitialiser la sélection en cours (joueur/action) pour éviter des états invalides
+  S.sel = { player: null, action: null };
+  // S'assurer que S.cur pointe bien sur le bon set en cours
+  // (le dernier set non terminé, ou le dernier set si tous terminés)
+  const lastUnfinished = S.sets.findIndex(s => s.us === null);
+  if(!S.matchOver) {
+    S.cur = lastUnfinished >= 0 ? lastUnfinished : S.sets.length - 1;
+  }
+  // Reconstruire l'état onCourt et isActiveLibero des joueurs
+  // (parfois perdu lors de la sérialisation JSON)
+  S.players.forEach(p => {
+    if(p.onCourt === undefined) p.onCourt = (p.role === 'enjeu');
+    if(p.isActiveLibero === undefined) p.isActiveLibero = false;
+  });
+  // S'assurer qu'au moins un libéro est actif si des libéros existent
+  const liberos = S.players.filter(p => p.role === 'libero');
+  if(liberos.length > 0 && !liberos.some(p => p.isActiveLibero)) {
+    liberos[0].isActiveLibero = true;
+  }
+  // Afficher l'app
   document.getElementById('screen-mes-matchs').classList.remove('active');
+  document.getElementById('screen-splash').classList.remove('active');
   document.getElementById('screen-app').classList.add('active');
   document.getElementById('screen-setup').classList.remove('active');
   document.getElementById('screen-match').classList.add('active');
@@ -1029,7 +1053,7 @@ function loadMatch(id) {
   } else {
     renderSaisie();
   }
-  showFlash('Match chargé !');
+  showFlash('Match chargé — Set ' + (S.cur + 1));
 }
 
 function showMesMatchs() {
@@ -1245,10 +1269,13 @@ function openPayModal(type, setIdx) {
   document.getElementById('pay-modal-desc').textContent = isFull
     ? 'Exporter les statistiques complètes du match en PDF'
     : 'Exporter les statistiques du set ' + (setIdx + 1) + ' en PDF';
-  document.getElementById('pay-modal-price').textContent = isFull ? '3 π Pi' : '1 π Pi';
+  document.getElementById('pay-modal-price').textContent = isFull ? '3 π Test-Pi' : '1 π Test-Pi';
   document.getElementById('pay-btn').disabled = false;
   document.getElementById('pay-status').textContent = '';
   document.getElementById('pay-error').classList.remove('show');
+  // Pré-remplir l'email mémorisé
+  const savedEmail = localStorage.getItem('volleyball_user_email') || '';
+  document.getElementById('pay-email').value = savedEmail;
   document.getElementById('pay-modal').classList.add('active');
 }
 
@@ -1261,6 +1288,15 @@ async function confirmPayment() {
   const amount = isFull ? 3 : 1;
   const memo = isFull ? 'PDF complet match volley' : 'PDF set ' + (pendingPDF.setIdx + 1) + ' volley';
   const metadata = { type: pendingPDF.type, setIdx: pendingPDF.setIdx, user: piUser ? piUser.username : '' };
+
+  // Valider l'email
+  const email = document.getElementById('pay-email').value.trim();
+  if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    showPayError('Veuillez saisir une adresse email valide.');
+    return;
+  }
+  // Mémoriser l'email pour la prochaine fois
+  localStorage.setItem('volleyball_user_email', email);
 
   document.getElementById('pay-btn').disabled = true;
   document.getElementById('pay-error').classList.remove('show');
@@ -1298,13 +1334,9 @@ async function confirmPayment() {
             body: JSON.stringify({ paymentId, txid })
           });
           if (!res.ok) throw new Error('Complétion échouée');
-          // Paiement réussi → générer le PDF
-          setPayStatus('✓ Paiement confirmé !');
-          setTimeout(() => {
-            closePayModal();
-            if (pendingPDF.type === 'all') exportPDF();
-            else exportSetPDF(pendingPDF.setIdx);
-          }, 800);
+          // Paiement confirmé → générer et envoyer le PDF par email
+          setPayStatus('Génération et envoi du PDF...');
+          await sendPDFByEmail(email, isFull, pendingPDF.setIdx);
         } catch(e) {
           showPayError('Erreur lors de la finalisation : ' + e.message);
           document.getElementById('pay-btn').disabled = false;
@@ -1324,6 +1356,39 @@ async function confirmPayment() {
   } catch(e) {
     setPayStatus('');
     showPayError('Erreur : ' + e.message);
+    document.getElementById('pay-btn').disabled = false;
+  }
+}
+
+async function sendPDFByEmail(email, isFull, setIdx) {
+  try {
+    // Générer le HTML du PDF
+    const done = S.sets.filter(s=>s.us!==null);
+    const sets = isFull ? (done.length>0?done:S.sets) : [S.sets[setIdx]];
+    const setIndices = isFull ? sets.map((_,i)=>i) : [setIdx];
+    const pdfHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Stats — '+S.teamName+' vs '+S.teamAdverse+'</title>'
+      +'<style>@page{size:A4 landscape;margin:0}body{margin:0;padding:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}</style>'
+      +'</head><body>'+sets.map((set,i)=>buildSetPDFPage(setIndices[i],set)).join('')+'</body></html>';
+
+    const subject = isFull
+      ? 'Stats match complet — ' + S.teamName + ' vs ' + S.teamAdverse
+      : 'Stats Set ' + (setIdx+1) + ' — ' + S.teamName + ' vs ' + S.teamAdverse;
+
+    const res = await fetch(BACKEND + '/api/send-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, subject, pdfHtml, teamName: S.teamName, teamAdverse: S.teamAdverse, isFull, setIdx })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erreur envoi email');
+
+    setPayStatus('✅ PDF envoyé à ' + email + ' !');
+    setTimeout(() => {
+      closePayModal();
+      showFlash('📧 PDF envoyé par email !');
+    }, 2000);
+  } catch(e) {
+    showPayError('Paiement OK mais erreur envoi email : ' + e.message);
     document.getElementById('pay-btn').disabled = false;
   }
 }
