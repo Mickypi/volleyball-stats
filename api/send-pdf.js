@@ -15,8 +15,9 @@ export default async function handler(req, res) {
   }
 
   const BREVO_API_KEY = process.env.BREVO_API_KEY;
-  if (!BREVO_API_KEY) {
-    res.status(500).json({ error: 'BREVO_API_KEY non configurée' });
+  const SENDER_EMAIL = process.env.SENDER_EMAIL; // ton adresse Gmail vérifiée dans Brevo
+  if (!BREVO_API_KEY || !SENDER_EMAIL) {
+    res.status(500).json({ error: 'BREVO_API_KEY ou SENDER_EMAIL non configuré' });
     return;
   }
 
@@ -66,7 +67,7 @@ export default async function handler(req, res) {
         'accept': 'application/json'
       },
       body: JSON.stringify({
-        sender: { name: 'Volley Stats', email: 'process.env.SENDER_EMAIL' },
+        sender: { name: 'Volley Stats', email: SENDER_EMAIL },
         to: [{ email }],
         subject: emailSubject,
         htmlContent: emailBody,
