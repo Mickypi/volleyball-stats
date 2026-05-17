@@ -14,9 +14,9 @@ export default async function handler(req, res) {
     return;
   }
 
-  const RESEND_API_KEY = process.env.RESEND_API_KEY;
-  if (!RESEND_API_KEY) {
-    res.status(500).json({ error: 'RESEND_API_KEY non configurée' });
+  const BREVO_API_KEY = process.env.BREVO_API_KEY;
+  if (!BREVO_API_KEY) {
+    res.status(500).json({ error: 'BREVO_API_KEY non configurée' });
     return;
   }
 
@@ -25,7 +25,10 @@ export default async function handler(req, res) {
     ? `le PDF complet du match ${teamName} vs ${teamAdverse}`
     : `le PDF du set ${(setIdx || 0) + 1} du match ${teamName} vs ${teamAdverse}`;
 
-  // Corps de l'email en HTML
+  const filename = isFull
+    ? `stats-complet-${teamName}-vs-${teamAdverse}.html`
+    : `stats-set${(setIdx||0)+1}-${teamName}-vs-${teamAdverse}.html`;
+
   const emailBody = `
 <!DOCTYPE html>
 <html>
@@ -44,7 +47,7 @@ export default async function handler(req, res) {
       <div style="font-size:14px;color:#0C447C;font-weight:600">🔵 ${teamName} vs ${teamAdverse} 🔴</div>
     </div>
     <p style="color:#888;font-size:12px;line-height:1.6;margin-top:20px">
-      Pour ouvrir le fichier PDF joint, utilisez votre navigateur ou une application d'impression et sélectionnez "Imprimer" puis "Enregistrer en PDF" en format paysage A4.
+      Pour imprimer en PDF : ouvrez le fichier joint dans votre navigateur, puis "Imprimer" → "Enregistrer en PDF" en format paysage A4.
     </p>
     <hr style="border:none;border-top:0.5px solid #eee;margin:20px 0">
     <p style="color:#aaa;font-size:11px;text-align:center">
@@ -55,38 +58,36 @@ export default async function handler(req, res) {
 </html>`;
 
   try {
-    const response = await fetch('https://api.resend.com/emails', {
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json'
+        'api-key': BREVO_API_KEY,
+        'Content-Type': 'application/json',
+        'accept': 'application/json'
       },
       body: JSON.stringify({
-        from: 'Volley Stats <stats@volleyball-stats.fr>',
-        to: [email],
+        sender: { name: 'Volley Stats', email: 'no-reply@volleyball-stats-five.vercel.app' },
+        to: [{ email }],
         subject: emailSubject,
-        html: emailBody,
-        attachments: [
+        htmlContent: emailBody,
+        attachment: [
           {
-            filename: isFull
-              ? `stats-complet-${teamName}-vs-${teamAdverse}.html`
-              : `stats-set${(setIdx||0)+1}-${teamName}-vs-${teamAdverse}.html`,
-            content: Buffer.from(pdfHtml).toString('base64'),
-            content_type: 'text/html'
+            name: filename,
+            content: Buffer.from(pdfHtml).toString('base64')
           }
         ]
       })
     });
 
     const data = await response.json();
-    console.log('Resend response:', response.status, JSON.stringify(data));
+    console.log('Brevo response:', response.status, JSON.stringify(data));
 
     if (!response.ok) {
-      res.status(response.status).json({ error: data.message || 'Erreur Resend' });
+      res.status(response.status).json({ error: data.message || 'Erreur Brevo' });
       return;
     }
 
-    res.status(200).json({ success: true, id: data.id });
+    res.status(200).json({ success: true, messageId: data.messageId });
   } catch (err) {
     console.error('Send-pdf error:', err.message);
     res.status(500).json({ error: err.message });
