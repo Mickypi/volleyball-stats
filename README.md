@@ -32,7 +32,7 @@ Elle permet à un statisticien de saisir rapidement les actions des joueurs (ser
 | Export | Coût |
 |--------|------|
 | PDF d'un set | 1 Pi |
-| PDF complet (tous les sets) | 3 Pi |
+| PDF complet (tous les sets) | 2 Pi |
 
 Les paiements sont traités via le SDK Pi Network (U2A — User to App).
 
