@@ -407,7 +407,8 @@ input:focus{outline:none;border-color:#185FA5;box-shadow:0 0 0 3px rgba(24,95,16
       <div id="sets-list-final" style="margin-bottom:16px"></div>
       <div id="stats-final"></div>
       <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
-        <button class="pdf-btn" onclick="openPayModal('all')">📄 Télécharger PDF complet (tous les sets) — 3 Test-Pi</button>
+        <button class="pdf-btn" onclick="openPayModal('all')">📧 Recevoir rapport complet — 2 Test-Pi</button>
+        <div id="sets-rapport-buttons"></div>
         <button class="btn btn-sm" style="border-color:#A32D2D;color:#A32D2D" onclick="resetMatch()">↺ Nouveau match</button>
       </div>
     </div>
@@ -676,13 +677,16 @@ function showEndSetActions(us,them){
   if(is3_0){
     html+='<div class="match-over-banner"><div class="match-over-trophy">🏆</div><div class="match-over-title">Match remporté par '+escHtml(winner)+' !</div><div class="match-over-score">'+wUs+' set'+(wUs>1?'s':'')+' – '+wThem+' set'+(wThem>1?'s':'')+'</div></div>';
     html+='<button class="modal-btn" onclick="doEndMatch()" style="background:#0F6E56;color:#E1F5EE">🏆 Terminer le match</button>';
+    html+='<button class="modal-btn" onclick="openPayModalFromEndSet('+S.cur+')" style="background:#6B21A8;color:#fff;font-size:13px">📧 Recevoir rapport de ce set — 1 Test-Pi</button>';
     html+='<button class="modal-btn" onclick="doNextSet()" style="background:#f0eeea;color:#444;font-size:13px">🤝 Continuer quand même (match amical)</button>';
   } else if(isMatchWon){
     html+='<div class="match-over-banner"><div class="match-over-trophy">🏆</div><div class="match-over-title">Match remporté par '+escHtml(winner)+' !</div><div class="match-over-score">'+wUs+' set'+(wUs>1?'s':'')+' – '+wThem+' set'+(wThem>1?'s':'')+'</div></div>';
     html+='<button class="modal-btn" onclick="doEndMatch()" style="background:#854F0B;color:#FAEEDA">🏆 Terminer le match</button>';
+    html+='<button class="modal-btn" onclick="openPayModalFromEndSet('+S.cur+')" style="background:#6B21A8;color:#fff;font-size:13px">📧 Recevoir rapport de ce set — 1 Test-Pi</button>';
     html+='<button class="modal-btn" onclick="closeScoreModal()" style="background:#f0eeea;color:#888">Annuler</button>';
   } else {
     html+='<button class="modal-btn" onclick="doNextSet()" style="background:#185FA5;color:#E6F1FB">→ Passer au set suivant</button>';
+    html+='<button class="modal-btn" onclick="openPayModalFromEndSet('+S.cur+')" style="background:#6B21A8;color:#fff;font-size:13px">📧 Recevoir rapport de ce set — 1 Test-Pi</button>';
     if(S.cur>=2)html+='<button class="modal-btn" onclick="doEndMatch()" style="background:#854F0B;color:#FAEEDA;font-size:13px">🏆 Terminer le match quand même</button>';
     html+='<button class="modal-btn" onclick="closeScoreModal()" style="background:#f0eeea;color:#888">Annuler</button>';
   }
@@ -698,6 +702,13 @@ function confirmScoreModal(){
   showEndSetActions(us,them);
   saveCurrentMatch(); // sauvegarde auto
 }
+function openPayModalFromEndSet(setIdx) {
+  // Fermer la modale score d'abord puis ouvrir le paiement
+  document.getElementById('score-modal').classList.remove('active');
+  document.getElementById('tab-saisie').style.display='block';
+  setTimeout(() => openPayModal('set', setIdx), 150);
+}
+
 function doNextSet(){
   document.getElementById('score-modal').classList.remove('active');
   S.sets.push({us:null,them:null,log:S.players.map(()=>mkLog())});
@@ -771,6 +782,8 @@ function showEndMatch(){
   const winner=wU>wT?S.teamName:wT>wU?S.teamAdverse:'Égalité';
   document.getElementById('winner-block').innerHTML='<div class="winner-banner"><div style="font-size:13px;color:#0F6E56">Vainqueur du match</div><div style="font-size:22px;font-weight:600;color:#085041;margin-top:4px">🏆 '+escHtml(winner)+'</div><div style="font-size:13px;color:#0F6E56;margin-top:6px">'+escHtml(S.teamName)+' <strong>'+wU+'</strong> – <strong>'+wT+'</strong> '+escHtml(S.teamAdverse)+'</div></div>';
   document.getElementById('sets-list-final').innerHTML=done.map((s,i)=>{const w=s.us>s.them?S.teamName:s.them>s.us?S.teamAdverse:'Égalité';return'<div class="set-row"><div><div style="font-weight:500">Set '+(i+1)+(i>=4?' 🏆':'')+'</div><div style="font-size:12px;color:#888">'+(w!=='Égalité'?'Gagné : '+w:'Égalité')+'</div></div><div style="font-size:22px;font-weight:600">'+s.us+' – '+s.them+'</div></div>';}).join('');
+  // Boutons rapport par set
+  document.getElementById('sets-rapport-buttons').innerHTML=done.map((s,i)=>'<button class="pdf-btn" style="background:#6B21A8;font-size:13px" onclick="openPayModal(\'set\','+i+')">📧 Rapport Set '+(i+1)+' — 1 Test-Pi</button>').join('');
   document.getElementById('stats-final').innerHTML=buildStatsHTML(aggregateStats(S.sets));
 }
 function showTab(tab){
@@ -786,7 +799,7 @@ function renderSets(){
     return'<div class="set-row"><div><div style="font-weight:500">Set '+(i+1)+(i>=4?' 🏆':'')+'</div><div style="font-size:12px;color:#888">'+(win!=='Égalité'?'Gagné : '+win:'Égalité')+'</div></div>'
       +'<div class="set-actions"><div style="font-size:22px;font-weight:600">'+s.us+' – '+s.them+'</div>'
       +'<button class="edit-set-btn" onclick="openScoreModal(\'edit\','+i+')" title="Modifier">✏️</button>'
-      +'<button class="btn btn-sm" onclick="openPayModal(\'set\','+i+')" style="font-size:11px;padding:5px 9px" title="PDF">📄 1π</button>'
+      +'<button class="btn btn-sm" onclick="openPayModal(\'set\','+i+')" style="font-size:11px;padding:5px 9px;border-color:#6B21A8;color:#6B21A8" title="Rapport par email">📧 1π</button>'
       +'</div></div>';
   }).join('');
 }
@@ -1269,7 +1282,7 @@ function openPayModal(type, setIdx) {
   document.getElementById('pay-modal-desc').textContent = isFull
     ? 'Exporter les statistiques complètes du match en PDF'
     : 'Exporter les statistiques du set ' + (setIdx + 1) + ' en PDF';
-  document.getElementById('pay-modal-price').textContent = isFull ? '3 π Test-Pi' : '1 π Test-Pi';
+  document.getElementById('pay-modal-price').textContent = isFull ? '2 π Test-Pi' : '1 π Test-Pi';
   document.getElementById('pay-btn').disabled = false;
   document.getElementById('pay-status').textContent = '';
   document.getElementById('pay-error').classList.remove('show');
@@ -1285,7 +1298,7 @@ function closePayModal() {
 
 async function confirmPayment() {
   const isFull = pendingPDF.type === 'all';
-  const amount = isFull ? 3 : 1;
+  const amount = isFull ? 2 : 1;
   const memo = isFull ? 'PDF complet match volley' : 'PDF set ' + (pendingPDF.setIdx + 1) + ' volley';
   const metadata = { type: pendingPDF.type, setIdx: pendingPDF.setIdx, user: piUser ? piUser.username : '' };
 
