@@ -66,7 +66,7 @@ export default async function handler(req, res) {
         'accept': 'application/json'
       },
       body: JSON.stringify({
-        sender: { name: 'Volley Stats', email: 'no-reply@volleyball-stats-five.vercel.app' },
+        sender: { name: 'Volley Stats', email: 'process.env.SENDER_EMAIL' },
         to: [{ email }],
         subject: emailSubject,
         htmlContent: emailBody,
