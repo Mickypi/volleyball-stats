@@ -230,8 +230,8 @@ input:focus{outline:none;border-color:#185FA5;box-shadow:0 0 0 3px rgba(24,95,16
 <div class="error-popup" id="error-popup">
   <div class="error-box">
     <div class="error-icon">⚠️</div>
-    <div class="error-title">Feuille de position incomplète</div>
-    <div class="error-msg-txt">Il faut exactement <strong>6 joueurs "En jeu"</strong> pour démarrer le match. Le libéro est optionnel (0, 1 ou 2 max).</div>
+    <div class="error-title">Configuration incorrecte</div>
+    <div class="error-msg-txt" id="error-msg-txt">Il faut exactement <strong>6 joueurs "En jeu"</strong> pour démarrer le match. Le libéro est optionnel (0, 1 ou 2 max).</div>
     <div class="error-count-badge" id="error-count"></div>
     <div class="error-detail" id="error-detail"></div>
     <button class="error-close-btn" onclick="document.getElementById('error-popup').classList.remove('active')">← Corriger la configuration</button>
@@ -294,7 +294,7 @@ input:focus{outline:none;border-color:#185FA5;box-shadow:0 0 0 3px rgba(24,95,16
   <div class="splash-tagline">My Team Simple Stats</div>
   <button class="btn-new-match" onclick="goSetup()">🏐 Nouveau Match</button>
   <button class="btn-mes-matchs" onclick="showMesMatchs()">📋 Mes Matchs</button>
-  <div class="splash-version">v1.0</div>
+  <div class="splash-version">v1.2</div>
 </div>
 
 <!-- ÉCRAN MES MATCHS -->
@@ -510,13 +510,30 @@ function renderSetupRows(){
 function startMatch(){
   const ej=S.players.filter(p=>p.role==='enjeu'),lib=S.players.filter(p=>p.role==='libero');
   if(ej.length!==6){
+    document.getElementById('error-msg-txt').innerHTML='Il faut exactement <strong>6 joueurs "En jeu"</strong> pour démarrer le match. Le libéro est optionnel (0, 1 ou 2 max).';
     document.getElementById('error-count').textContent=ej.length+' joueur'+(ej.length>1?'s':'')+' "En jeu" défini'+(ej.length>1?'s':'');
     let d=ej.length<6?'Il manque '+(6-ej.length)+' joueur'+(6-ej.length>1?'s':'')+' "En jeu".':'Il y a '+(ej.length-6)+' joueur'+(ej.length-6>1?'s':'')+' "En jeu" en trop.';
     if(lib.length)d+='<br>🟣 Libéro'+(lib.length>1?'s':'')+' : '+lib.map(p=>'#'+p.num+' '+p.name).join(', ');
     document.getElementById('error-detail').innerHTML=d;
     document.getElementById('error-popup').classList.add('active');return;
   }
-  S.teamName=document.getElementById('team-name').value||'Mon équipe';
+  // Validation numéros joueurs
+  const nums = S.players.map(p=>p.num.trim()).filter(n=>n!=='');
+  const missingNum = S.players.find(p=>p.num.trim()==='');
+  if(missingNum){
+    document.getElementById('error-count').textContent='Numéro manquant';
+    document.getElementById('error-detail').innerHTML='Le joueur <strong>'+escHtml(missingNum.name)+'</strong> n\'a pas de numéro. Tous les joueurs doivent avoir un numéro.';
+    document.getElementById('error-popup').classList.add('active');return;
+  }
+  const uniqueNums = new Set(nums);
+  if(uniqueNums.size !== nums.length){
+    // Trouver les doublons
+    const seen={}, dupes=[];
+    nums.forEach(n=>{if(seen[n])dupes.push(n);seen[n]=true;});
+    document.getElementById('error-count').textContent='Numéros en double';
+    document.getElementById('error-detail').innerHTML='Le'+(dupes.length>1?'s':'')+' numéro'+(dupes.length>1?'s':'')+' <strong>'+dupes.join(', ')+'</strong> est utilisé plusieurs fois. Chaque joueur doit avoir un numéro unique.';
+    document.getElementById('error-popup').classList.add('active');return;
+  }
   S.teamAdverse=document.getElementById('team-adverse').value||'Adversaire';
   S.players.forEach(p=>{p.onCourt=(p.role==='enjeu');p.isActiveLibero=false;});
   let fl=true;S.players.forEach(p=>{if(p.role==='libero'){p.isActiveLibero=fl;fl=false;}});
@@ -665,8 +682,10 @@ function closeScoreModal(){
 function openEndSet(){document.getElementById('tab-saisie').style.display='none';openScoreModal('endset',S.cur);}
 
 function showEndSetActions(us,them){
-  const prev=getSetsScore();
-  const wUs=prev.us+(us>them?1:0),wThem=prev.them+(them>us?1:0);
+  // getSetsScore() inclut déjà le set qu'on vient de sauvegarder
+  // donc on utilise directement ce score sans ré-additionner
+  const score=getSetsScore();
+  const wUs=score.us, wThem=score.them;
   const is3_0=(wUs===3&&wThem===0)||(wThem===3&&wUs===0);
   const isMatchWon=wUs>=3||wThem>=3;
   const winner=wUs>wThem?S.teamName:S.teamAdverse;
