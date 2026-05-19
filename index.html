@@ -378,12 +378,14 @@ input:focus{outline:none;border-color:#185FA5;box-shadow:0 0 0 3px rgba(24,95,16
       </div>
       <div class="card">
         <div class="step-label"><span class="step-num" id="sn2">2</span> Type d'action</div>
-        <div class="libero-action-hint" id="libero-hint">🟣 Le libéro ne peut effectuer que des <strong>Réceptions</strong></div>
+        <div class="libero-action-hint" id="libero-hint">🟣 Le libéro peut effectuer : <strong>Réception, Défense et Passe</strong></div>
         <div class="action-grid">
           <button class="action-btn" id="ab-service" onclick="selectAction('service')"><span class="ico">↑</span>Service</button>
           <button class="action-btn" id="ab-reception" onclick="selectAction('reception')"><span class="ico">↓</span>Réception</button>
           <button class="action-btn" id="ab-attaque" onclick="selectAction('attaque')"><span class="ico">⚡</span>Attaque</button>
           <button class="action-btn" id="ab-bloc" onclick="selectAction('bloc')"><span class="ico">🤚</span>Bloc</button>
+          <button class="action-btn" id="ab-defense" onclick="selectAction('defense')"><span class="ico">🛡️</span>Défense</button>
+          <button class="action-btn" id="ab-passe" onclick="selectAction('passe')"><span class="ico">🤲</span>Passe</button>
         </div>
       </div>
       <div class="card">
@@ -429,6 +431,8 @@ input:focus{outline:none;border-color:#185FA5;box-shadow:0 0 0 3px rgba(24,95,16
       <input type="email" id="pay-email" placeholder="votre@email.com" style="width:100%;height:40px;font-size:14px;border:0.5px solid rgba(0,0,0,0.2);border-radius:8px;padding:0 10px;font-family:inherit;background:#fff;color:#1a1a18">
     </div>
     <button class="pay-btn-pi" id="pay-btn" onclick="confirmPayment()">🟣 Payer avec Test-Pi</button>
+    <div style="display:flex;align-items:center;gap:8px;margin:8px 0"><div style="flex:1;height:0.5px;background:rgba(0,0,0,0.1)"></div><span style="font-size:11px;color:#aaa">ou</span><div style="flex:1;height:0.5px;background:rgba(0,0,0,0.1)"></div></div>
+    <button class="pay-btn-cancel" style="color:#185FA5;border-color:#185FA5;background:#E6F1FB" onclick="getFreeReport()">📧 Recevoir gratuitement (testeurs)</button>
     <button class="pay-btn-cancel" onclick="closePayModal()">Annuler</button>
     <div class="pay-status" id="pay-status"></div>
     <div class="pay-error" id="pay-error"></div>
@@ -438,19 +442,19 @@ input:focus{outline:none;border-color:#185FA5;box-shadow:0 0 0 3px rgba(24,95,16
 <script>
 const ROLES=['enjeu','remplacant','libero'];
 const ROLE_LABELS={enjeu:'En jeu',remplacant:'Remplaçant',libero:'Libéro'};
-const CATS=['service','reception','attaque','bloc'];
-const CAT_LABELS={service:'Service',reception:'Réception',attaque:'Attaque',bloc:'Bloc'};
+const CATS=['service','reception','attaque','bloc','defense','passe'];
+const CAT_LABELS={service:'Service',reception:'Réception',attaque:'Attaque',bloc:'Bloc',defense:'Défense',passe:'Passe'};
 const GRADE_IDS={'++':'gb-pp','+':'gb-p','0':'gb-z','-':'gb-m'};
 const GRADE_CLASSES={'++':'gp-pp','+':'gp-p','0':'gp-z','-':'gp-m'};
-const ACTIONS={service:'Service',reception:'Réception',attaque:'Attaque',bloc:'Bloc'};
-const LIBERO_ACTIONS=['reception'];
+const ACTIONS={service:'Service',reception:'Réception',attaque:'Attaque',bloc:'Bloc',defense:'Défense',passe:'Passe'};
+const LIBERO_ACTIONS=['reception','defense','passe'];
 
 let S={teamName:'',teamAdverse:'',players:[],sets:[],cur:0,sel:{player:null,action:null},statsFilter:'all',matchOver:false,changeLog:[],matchId:null};
 let changePanelOpen=false;
 let scoreModalMode='endset';
 let editSetIdx=-1;
 
-function mkLog(){return{service:[],reception:[],attaque:[],bloc:[]}}
+function mkLog(){return{service:[],reception:[],attaque:[],bloc:[],defense:[],passe:[]}}
 function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}
 
 /* ---- SCORE VALIDATION ---- */
@@ -757,7 +761,7 @@ function effClass(e){return e===null?'eff-neu':e>0?'eff-pos':e<0?'eff-neg':'eff-
 function effStr(e){return e===null?'—':(e>0?'+':'')+e+'%'}
 function buildStatsHTML(agg){
   let html='';
-  const catIcos={service:'↑',reception:'↓',attaque:'⚡',bloc:'🤚'};
+  const catIcos={service:'↑',reception:'↓',attaque:'⚡',bloc:'🤚',defense:'🛡',passe:'🤲'};
   CATS.forEach(cat=>{
     if(!S.players.some((_,i)=>agg[i][cat].length>0))return;
     html+='<div class="stats-section"><div class="stats-section-title">'+catIcos[cat]+' '+CAT_LABELS[cat]+'</div><div class="tbl-wrap"><table class="stbl"><thead><tr><th class="lh">Joueur</th><th>++</th><th>+</th><th>0</th><th>−</th><th>Total</th><th>Eff.</th></tr></thead><tbody>';
@@ -823,131 +827,187 @@ function renderSets(){
   }).join('');
 }
 
-/* ---- PDF — NOUVEAU FORMAT TABLEAU UNIQUE ---- */
+/* ---- PDF — 3 TABLEAUX PAR PAGE ---- */
 function buildSetPDFPage(si,set){
-  const agg=S.players.map(()=>({service:[],reception:[],attaque:[],bloc:[]}));
-  set.log.forEach((plog,pi)=>{CATS.forEach(cat=>{agg[pi][cat]=agg[pi][cat].concat(plog[cat]);});});
+  const agg=S.players.map(()=>({service:[],reception:[],attaque:[],bloc:[],defense:[],passe:[]}));
+  set.log.forEach((plog,pi)=>{CATS.forEach(cat=>{agg[pi][cat]=(agg[pi][cat]||[]).concat(plog[cat]||[]);});});
   const scoreStr=set.us!==null?set.us+' – '+set.them:'En cours';
   const winner=set.us!==null?(set.us>set.them?S.teamName:set.them>set.us?S.teamAdverse:'Égalité'):'';
 
   function cs(grades){
-    const pp=grades.filter(g=>g==='++').length,p=grades.filter(g=>g==='+').length,z=grades.filter(g=>g==='0').length,m=grades.filter(g=>g==='-').length,total=grades.length;
-    const eff=total>0?Math.round(((pp-m)/total)*100):null;
-    return{pp,p,z,m,total,eff};
+    const g=grades||[];
+    const pp=g.filter(x=>x==='++').length,p=g.filter(x=>x==='+').length,z=g.filter(x=>x==='0').length,m=g.filter(x=>x==='-').length,total=g.length;
+    return{pp,p,z,m,total,eff:total>0?Math.round(((pp-m)/total)*100):null};
   }
   function eStr(e){return e===null?'—':(e>0?'+':'')+e+'%';}
   function eCol(e){return e===null?'#888':e>0?'#0F6E56':e<0?'#A32D2D':'#888';}
 
-  // Style commun cellules
-  const th='padding:4px 5px;text-align:center;border-bottom:1.5px solid #bbb;white-space:nowrap;font-weight:600;font-size:8px;';
-  const td='padding:4px 5px;text-align:center;border-bottom:0.5px solid #eee;font-size:8px;';
-  const tdL='padding:4px 6px;text-align:left;border-bottom:0.5px solid #eee;font-size:8px;font-weight:500;white-space:nowrap;';
-  const sepL='border-left:1.5px solid rgba(0,0,0,0.15);';
+  const td='padding:3px 5px;text-align:center;border-bottom:0.5px solid #eee;font-size:8px;';
+  const tdL='padding:3px 6px;text-align:left;border-bottom:0.5px solid #eee;font-size:8px;font-weight:500;white-space:nowrap;min-width:80px;';
+  const thH='padding:3px 5px;text-align:center;font-size:7px;font-weight:700;color:#fff;border-bottom:1px solid rgba(255,255,255,0.3);';
+  const thS='padding:3px 5px;text-align:center;font-size:7px;color:#555;background:#f0f0ee;border-bottom:1px solid #ccc;';
+  const thL='padding:3px 6px;text-align:left;font-size:7px;color:#555;background:#f0f0ee;border-bottom:1px solid #ccc;';
+  const trT='padding:3px 5px;text-align:center;font-size:8px;font-weight:700;background:#e8e8e6;border-top:1.5px solid #bbb;';
+  const trTL='padding:3px 6px;text-align:left;font-size:8px;font-weight:700;background:#e8e8e6;border-top:1.5px solid #bbb;';
 
-  let rows='';
-  let tSrv={pp:0,p:0,z:0,m:0,total:0},tRec={pp:0,p:0,z:0,m:0,total:0},tAtt={pp:0,p:0,z:0,m:0,total:0},tBloc={pp:0,p:0,z:0,m:0,total:0};
+  // Calcul stats joueurs
+  const playerStats=S.players.map((p,i)=>{
+    const srv=cs(agg[i].service),rec=cs(agg[i].reception),att=cs(agg[i].attaque),bloc=cs(agg[i].bloc),def=cs(agg[i].defense),pas=cs(agg[i].passe);
+    const rapport=(srv.pp+rec.pp+att.pp+def.pp+pas.pp)-(srv.m+rec.m+att.m+def.m+pas.m)+bloc.pp;
+    const total=srv.total+rec.total+att.total+bloc.total+def.total+pas.total;
+    const ppTotal=srv.pp+rec.pp+att.pp+bloc.pp+def.pp+pas.pp;
+    const mTotal=srv.m+rec.m+att.m+bloc.m+def.m+pas.m;
+    const effGlobal=total>0?Math.round(((ppTotal-mTotal)/total)*100):null;
+    return{p,srv,rec,att,bloc,def,pas,rapport,total,ppTotal,effGlobal};
+  }).filter(x=>x.total>0);
 
-  S.players.forEach((p,i)=>{
-    const srv=cs(agg[i].service),rec=cs(agg[i].reception),att=cs(agg[i].attaque),bloc=cs(agg[i].bloc);
-    const hasData=agg[i].service.length||agg[i].reception.length||agg[i].attaque.length||agg[i].bloc.length;
-    if(!hasData)return;
-    // Rapport : (srv++ + rec++ + att++) - (srv- + rec- + att-) + bloc++
-    const rapport=(srv.pp+rec.pp+att.pp)-(srv.m+rec.m+att.m)+bloc.pp;
-    const rCol=rapport>0?'#0F6E56':rapport<0?'#A32D2D':'#888';
-    tSrv.pp+=srv.pp;tSrv.p+=srv.p;tSrv.z+=srv.z;tSrv.m+=srv.m;tSrv.total+=srv.total;
-    tRec.pp+=rec.pp;tRec.p+=rec.p;tRec.z+=rec.z;tRec.m+=rec.m;tRec.total+=rec.total;
-    tAtt.pp+=att.pp;tAtt.p+=att.p;tAtt.z+=att.z;tAtt.m+=att.m;tAtt.total+=att.total;
-    tBloc.pp+=bloc.pp;tBloc.p+=bloc.p;tBloc.z+=bloc.z;tBloc.m+=bloc.m;tBloc.total+=bloc.total;
-    rows+='<tr>'
-      +'<td style="'+tdL+'">#'+p.num+' '+p.name+'</td>'
-      // Service
-      +'<td style="'+td+'color:#085041;font-weight:700">'+srv.pp+'</td>'
-      +'<td style="'+td+'">'+srv.p+'</td>'
-      +'<td style="'+td+'">'+srv.z+'</td>'
-      +'<td style="'+td+'color:#791F1F">'+srv.m+'</td>'
-      +'<td style="'+td+'">'+srv.total+'</td>'
-      +'<td style="'+td+'color:'+eCol(srv.eff)+';font-weight:700">'+eStr(srv.eff)+'</td>'
-      // Réception
-      +'<td style="'+td+sepL+'color:#085041;font-weight:700">'+rec.pp+'</td>'
-      +'<td style="'+td+'">'+rec.p+'</td>'
-      +'<td style="'+td+'">'+rec.z+'</td>'
-      +'<td style="'+td+'color:#791F1F">'+rec.m+'</td>'
-      +'<td style="'+td+'">'+rec.total+'</td>'
-      +'<td style="'+td+'color:'+eCol(rec.eff)+';font-weight:700">'+eStr(rec.eff)+'</td>'
-      // Attaque
-      +'<td style="'+td+sepL+'color:#085041;font-weight:700">'+att.pp+'</td>'
-      +'<td style="'+td+'">'+att.p+'</td>'
-      +'<td style="'+td+'">'+att.z+'</td>'
-      +'<td style="'+td+'color:#791F1F">'+att.m+'</td>'
-      +'<td style="'+td+'">'+att.total+'</td>'
-      +'<td style="'+td+'color:'+eCol(att.eff)+';font-weight:700">'+eStr(att.eff)+'</td>'
-      // Bloc
-      +'<td style="'+td+sepL+'color:#085041;font-weight:700">'+bloc.pp+'</td>'
-      +'<td style="'+td+'">'+bloc.p+'</td>'
-      +'<td style="'+td+'">'+bloc.z+'</td>'
-      +'<td style="'+td+'color:#791F1F">'+bloc.m+'</td>'
-      +'<td style="'+td+'">'+bloc.total+'</td>'
-      // Rapport
-      +'<td style="'+td+sepL+'color:'+rCol+';font-weight:700">'+(rapport>0?'+':'')+rapport+'</td>'
+  // Totaux équipe
+  const tot={srv:{pp:0,p:0,z:0,m:0,total:0},rec:{pp:0,p:0,z:0,m:0,total:0},att:{pp:0,p:0,z:0,m:0,total:0},bloc:{pp:0,p:0,z:0,m:0,total:0},def:{pp:0,p:0,z:0,m:0,total:0},pas:{pp:0,p:0,z:0,m:0,total:0}};
+  playerStats.forEach(x=>{['srv','rec','att','bloc','def','pas'].forEach(k=>{['pp','p','z','m','total'].forEach(f=>{tot[k][f]+=x[k][f];});});});
+
+  function tblRow1(x){
+    return'<tr>'
+      +'<td style="'+tdL+'">#'+x.p.num+' '+x.p.name+'</td>'
+      +'<td style="'+td+'color:#085041;font-weight:700">'+x.srv.pp+'</td><td style="'+td+'">'+x.srv.p+'</td><td style="'+td+'">'+x.srv.z+'</td><td style="'+td+'color:#791F1F">'+x.srv.m+'</td><td style="'+td+'">'+x.srv.total+'</td><td style="'+td+'color:'+eCol(x.srv.eff)+';font-weight:600">'+eStr(x.srv.eff)+'</td>'
+      +'<td style="'+td+'color:#085041;font-weight:700;border-left:1.5px solid #ddd">'+x.pas.pp+'</td><td style="'+td+'">'+x.pas.p+'</td><td style="'+td+'">'+x.pas.z+'</td><td style="'+td+'color:#791F1F">'+x.pas.m+'</td><td style="'+td+'">'+x.pas.total+'</td><td style="'+td+'color:'+eCol(x.pas.eff)+';font-weight:600">'+eStr(x.pas.eff)+'</td>'
+      +'<td style="'+td+'color:#085041;font-weight:700;border-left:1.5px solid #ddd">'+x.att.pp+'</td><td style="'+td+'">'+x.att.p+'</td><td style="'+td+'">'+x.att.z+'</td><td style="'+td+'color:#791F1F">'+x.att.m+'</td><td style="'+td+'">'+x.att.total+'</td><td style="'+td+'color:'+eCol(x.att.eff)+';font-weight:600">'+eStr(x.att.eff)+'</td>'
       +'</tr>';
-  });
+  }
+  function tblRow2(x){
+    return'<tr>'
+      +'<td style="'+tdL+'">#'+x.p.num+' '+x.p.name+'</td>'
+      +'<td style="'+td+'color:#085041;font-weight:700">'+x.rec.pp+'</td><td style="'+td+'">'+x.rec.p+'</td><td style="'+td+'">'+x.rec.z+'</td><td style="'+td+'color:#791F1F">'+x.rec.m+'</td><td style="'+td+'">'+x.rec.total+'</td><td style="'+td+'color:'+eCol(x.rec.eff)+';font-weight:600">'+eStr(x.rec.eff)+'</td>'
+      +'<td style="'+td+'color:#085041;font-weight:700;border-left:1.5px solid #ddd">'+x.def.pp+'</td><td style="'+td+'">'+x.def.p+'</td><td style="'+td+'">'+x.def.z+'</td><td style="'+td+'color:#791F1F">'+x.def.m+'</td><td style="'+td+'">'+x.def.total+'</td><td style="'+td+'color:'+eCol(x.def.eff)+';font-weight:600">'+eStr(x.def.eff)+'</td>'
+      +'<td style="'+td+'color:#085041;font-weight:700;border-left:1.5px solid #ddd">'+x.bloc.pp+'</td><td style="'+td+'">'+x.bloc.p+'</td><td style="'+td+'">'+x.bloc.z+'</td><td style="'+td+'color:#791F1F">'+x.bloc.m+'</td><td style="'+td+'">'+x.bloc.total+'</td>'
+      +'</tr>';
+  }
+  function tblRow3(x){
+    const rCol=x.rapport>0?'#0F6E56':x.rapport<0?'#A32D2D':'#888';
+    const pct=x.total>0?Math.round((x.ppTotal/x.total)*100):0;
+    return'<tr>'
+      +'<td style="'+tdL+'">#'+x.p.num+' '+x.p.name+'</td>'
+      +'<td style="'+td+'">'+(x.p.role==='libero'?'🟣 Libéro':x.p.role==='enjeu'?'En jeu':'Remplaçant')+'</td>'
+      +'<td style="'+td+'font-weight:700">'+x.total+'</td>'
+      +'<td style="'+td+'color:#085041;font-weight:700">'+x.ppTotal+'</td>'
+      +'<td style="'+td+'color:'+(pct>=30?'#0F6E56':pct>=15?'#854F0B':'#A32D2D')+';font-weight:700">'+pct+'%</td>'
+      +'<td style="'+td+'color:'+eCol(x.effGlobal)+';font-weight:700">'+eStr(x.effGlobal)+'</td>'
+      +'<td style="'+td+'color:'+rCol+';font-weight:700;font-size:9px">'+(x.rapport>0?'+':'')+x.rapport+'</td>'
+      +'</tr>';
+  }
 
-  // Ligne total
-  const tSrvE=tSrv.total>0?Math.round(((tSrv.pp-tSrv.m)/tSrv.total)*100):null;
-  const tRecE=tRec.total>0?Math.round(((tRec.pp-tRec.m)/tRec.total)*100):null;
-  const tAttE=tAtt.total>0?Math.round(((tAtt.pp-tAtt.m)/tAtt.total)*100):null;
-  const tRapport=(tSrv.pp+tRec.pp+tAtt.pp)-(tSrv.m+tRec.m+tAtt.m)+tBloc.pp;
-  const tRCol=tRapport>0?'#0F6E56':tRapport<0?'#A32D2D':'#888';
-  const trStyle='padding:4px 5px;text-align:center;border-top:1.5px solid #bbb;font-size:8px;font-weight:700;background:#f0f0ee;';
-  const trStyleL='padding:4px 6px;text-align:left;border-top:1.5px solid #bbb;font-size:8px;font-weight:700;background:#f0f0ee;';
-  rows+='<tr>'
-    +'<td style="'+trStyleL+'">Total équipe</td>'
-    +'<td style="'+trStyle+'color:#085041">'+tSrv.pp+'</td><td style="'+trStyle+'">'+tSrv.p+'</td><td style="'+trStyle+'">'+tSrv.z+'</td><td style="'+trStyle+'color:#791F1F">'+tSrv.m+'</td><td style="'+trStyle+'">'+tSrv.total+'</td><td style="'+trStyle+'color:'+eCol(tSrvE)+'">'+ eStr(tSrvE)+'</td>'
-    +'<td style="'+trStyle+sepL+'color:#085041">'+tRec.pp+'</td><td style="'+trStyle+'">'+tRec.p+'</td><td style="'+trStyle+'">'+tRec.z+'</td><td style="'+trStyle+'color:#791F1F">'+tRec.m+'</td><td style="'+trStyle+'">'+tRec.total+'</td><td style="'+trStyle+'color:'+eCol(tRecE)+'">'+eStr(tRecE)+'</td>'
-    +'<td style="'+trStyle+sepL+'color:#085041">'+tAtt.pp+'</td><td style="'+trStyle+'">'+tAtt.p+'</td><td style="'+trStyle+'">'+tAtt.z+'</td><td style="'+trStyle+'color:#791F1F">'+tAtt.m+'</td><td style="'+trStyle+'">'+tAtt.total+'</td><td style="'+trStyle+'color:'+eCol(tAttE)+'">'+eStr(tAttE)+'</td>'
-    +'<td style="'+trStyle+sepL+'color:#085041">'+tBloc.pp+'</td><td style="'+trStyle+'">'+tBloc.p+'</td><td style="'+trStyle+'">'+tBloc.z+'</td><td style="'+trStyle+'color:#791F1F">'+tBloc.m+'</td><td style="'+trStyle+'">'+tBloc.total+'</td>'
-    +'<td style="'+trStyle+sepL+'color:'+tRCol+'">'+(tRapport>0?'+':'')+tRapport+'</td>'
-    +'</tr>';
+  // Total équipe tbl1
+  const t1=tot;
+  const totSrvE=t1.srv.total>0?Math.round(((t1.srv.pp-t1.srv.m)/t1.srv.total)*100):null;
+  const totPasE=t1.pas.total>0?Math.round(((t1.pas.pp-t1.pas.m)/t1.pas.total)*100):null;
+  const totAttE=t1.att.total>0?Math.round(((t1.att.pp-t1.att.m)/t1.att.total)*100):null;
+  const totRecE=t1.rec.total>0?Math.round(((t1.rec.pp-t1.rec.m)/t1.rec.total)*100):null;
+  const totDefE=t1.def.total>0?Math.round(((t1.def.pp-t1.def.m)/t1.def.total)*100):null;
+  const totRap=(t1.srv.pp+t1.rec.pp+t1.att.pp+t1.def.pp+t1.pas.pp)-(t1.srv.m+t1.rec.m+t1.att.m+t1.def.m+t1.pas.m)+t1.bloc.pp;
+  const totAll=t1.srv.total+t1.rec.total+t1.att.total+t1.bloc.total+t1.def.total+t1.pas.total;
+  const totPP=t1.srv.pp+t1.rec.pp+t1.att.pp+t1.bloc.pp+t1.def.pp+t1.pas.pp;
+  const totM=t1.srv.m+t1.rec.m+t1.att.m+t1.bloc.m+t1.def.m+t1.pas.m;
+  const totEff=totAll>0?Math.round(((totPP-totM)/totAll)*100):null;
+  const totPct=totAll>0?Math.round((totPP/totAll)*100):0;
+  const totRCol=totRap>0?'#0F6E56':totRap<0?'#A32D2D':'#888';
 
-  const thBase='padding:4px 5px;text-align:center;font-size:7px;white-space:nowrap;font-weight:400;color:#fff;';
-  const thBgSrv='background:#185FA5;';
-  const thBgRec='background:#0F6E56;';
-  const thBgAtt='background:#854F0B;';
-  const thBgBloc='background:#6B21A8;';
-  const thBgRap='background:#1a1a18;';
-  const thSub='padding:4px 5px;text-align:center;font-size:7px;white-space:nowrap;background:#f5f5f0;color:#444;border-bottom:1.5px solid #bbb;';
-
-  return'<div style="page-break-after:always;padding:12px 14px;font-family:Arial,sans-serif;height:100vh">'
-    // Header
-    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid #1a1a18">'
-    +'<div><div style="font-size:14px;font-weight:700;color:#1a1a18">SET '+(si+1)+(si>=4?' — TIE-BREAK':'')+'</div><div style="font-size:9px;color:#666;margin-top:1px">'+S.teamName+' vs '+S.teamAdverse+'</div></div>'
-    +'<div style="text-align:center"><div style="font-size:18px;font-weight:700;color:#1a1a18">'+scoreStr+'</div>'+(winner?'<div style="font-size:8px;color:#0F6E56;font-weight:700;margin-top:1px">Gagné : '+winner+'</div>':'')+'</div>'
+  const pageHeader='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid #1a1a18">'
+    +'<div><div style="font-size:13px;font-weight:700;color:#1a1a18">SET '+(si+1)+(si>=4?' — TIE-BREAK':'')+'</div><div style="font-size:9px;color:#666;margin-top:1px">'+S.teamName+' vs '+S.teamAdverse+'</div></div>'
+    +'<div style="text-align:center"><div style="font-size:17px;font-weight:700;color:#1a1a18">'+scoreStr+'</div>'+(winner?'<div style="font-size:8px;color:#0F6E56;font-weight:700;margin-top:1px">Gagné : '+winner+'</div>':'')+'</div>'
     +'<div style="font-size:8px;color:#aaa;text-align:right">Volley-Ball · My Team Simple Stats<br>'+new Date().toLocaleDateString('fr-FR')+'</div>'
-    +'</div>'
-    // Tableau
-    +'<table style="width:100%;border-collapse:collapse;font-size:8px">'
-    +'<thead>'
-    // Ligne 1 : catégories
-    +'<tr>'
-    +'<th rowspan="2" style="padding:4px 6px;text-align:left;font-size:8px;background:#f5f5f0;border-bottom:1.5px solid #bbb;min-width:80px">Joueur</th>'
-    +'<th colspan="6" style="'+thBase+thBgSrv+'border-left:1.5px solid rgba(0,0,0,0.2)">↑ SERVICE</th>'
-    +'<th colspan="6" style="'+thBase+thBgRec+'border-left:1.5px solid rgba(0,0,0,0.2)">↓ RÉCEPTION</th>'
-    +'<th colspan="6" style="'+thBase+thBgAtt+'border-left:1.5px solid rgba(0,0,0,0.2)">⚡ ATTAQUE</th>'
-    +'<th colspan="5" style="'+thBase+thBgBloc+'border-left:1.5px solid rgba(0,0,0,0.2)">🤚 BLOC</th>'
-    +'<th rowspan="2" style="'+thBase+thBgRap+'border-left:1.5px solid rgba(0,0,0,0.2);padding:4px 5px;vertical-align:middle;min-width:40px">Rapport pts / fautes</th>'
-    +'</tr>'
-    // Ligne 2 : sous-colonnes
-    +'<tr>'
-    +'<th style="'+thSub+'border-left:1.5px solid rgba(0,0,0,0.2)">++</th><th style="'+thSub+'">+</th><th style="'+thSub+'">0</th><th style="'+thSub+'">−</th><th style="'+thSub+'">Total</th><th style="'+thSub+'">Eff.</th>'
-    +'<th style="'+thSub+'border-left:1.5px solid rgba(0,0,0,0.2)">++</th><th style="'+thSub+'">+</th><th style="'+thSub+'">0</th><th style="'+thSub+'">−</th><th style="'+thSub+'">Total</th><th style="'+thSub+'">Eff.</th>'
-    +'<th style="'+thSub+'border-left:1.5px solid rgba(0,0,0,0.2)">++</th><th style="'+thSub+'">+</th><th style="'+thSub+'">0</th><th style="'+thSub+'">−</th><th style="'+thSub+'">Total</th><th style="'+thSub+'">Eff.</th>'
-    +'<th style="'+thSub+'border-left:1.5px solid rgba(0,0,0,0.2)">++</th><th style="'+thSub+'">+</th><th style="'+thSub+'">0</th><th style="'+thSub+'">−</th><th style="'+thSub+'">Total</th>'
-    +'</tr>'
-    +'</thead>'
-    +'<tbody>'+rows+'</tbody>'
-    +'</table>'
-    +'<div style="margin-top:8px;font-size:7px;color:#aaa">Eff. = (++ − −) / total &nbsp;·&nbsp; Rapport pts/fautes = (Srv++ + Réc++ + Att++) − (Srv− + Réc− + Att−) + Bloc++ (blocs directs)</div>'
     +'</div>';
+
+  // TABLEAU 1 : Service · Passe · Attaque
+  const tbl1='<div style="margin-bottom:12px">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:8px">'
+    +'<thead><tr>'
+    +'<th style="'+thL+'">Joueur</th>'
+    +'<th colspan="6" style="'+thH+'background:#185FA5">↑ SERVICE</th>'
+    +'<th colspan="6" style="'+thH+'background:#B45309;border-left:1.5px solid #ddd">🤲 PASSE</th>'
+    +'<th colspan="6" style="'+thH+'background:#854F0B;border-left:1.5px solid #ddd">⚡ ATTAQUE</th>'
+    +'</tr><tr>'
+    +'<th style="'+thL+'"></th>'
+    +'<th style="'+thS+'">++</th><th style="'+thS+'">+</th><th style="'+thS+'">0</th><th style="'+thS+'">−</th><th style="'+thS+'">N</th><th style="'+thS+'">Eff.</th>'
+    +'<th style="'+thS+'border-left:1.5px solid #ddd">++</th><th style="'+thS+'">+</th><th style="'+thS+'">0</th><th style="'+thS+'">−</th><th style="'+thS+'">N</th><th style="'+thS+'">Eff.</th>'
+    +'<th style="'+thS+'border-left:1.5px solid #ddd">++</th><th style="'+thS+'">+</th><th style="'+thS+'">0</th><th style="'+thS+'">−</th><th style="'+thS+'">N</th><th style="'+thS+'">Eff.</th>'
+    +'</tr></thead><tbody>'
+    +playerStats.map(x=>tblRow1(x)).join('')
+    +'<tr>'
+    +'<td style="'+trTL+'">Total équipe</td>'
+    +'<td style="'+trT+'color:#085041">'+t1.srv.pp+'</td><td style="'+trT+'">'+t1.srv.p+'</td><td style="'+trT+'">'+t1.srv.z+'</td><td style="'+trT+'color:#791F1F">'+t1.srv.m+'</td><td style="'+trT+'">'+t1.srv.total+'</td><td style="'+trT+'color:'+eCol(totSrvE)+'">'+eStr(totSrvE)+'</td>'
+    +'<td style="'+trT+'color:#085041;border-left:1.5px solid #ddd">'+t1.pas.pp+'</td><td style="'+trT+'">'+t1.pas.p+'</td><td style="'+trT+'">'+t1.pas.z+'</td><td style="'+trT+'color:#791F1F">'+t1.pas.m+'</td><td style="'+trT+'">'+t1.pas.total+'</td><td style="'+trT+'color:'+eCol(totPasE)+'">'+eStr(totPasE)+'</td>'
+    +'<td style="'+trT+'color:#085041;border-left:1.5px solid #ddd">'+t1.att.pp+'</td><td style="'+trT+'">'+t1.att.p+'</td><td style="'+trT+'">'+t1.att.z+'</td><td style="'+trT+'color:#791F1F">'+t1.att.m+'</td><td style="'+trT+'">'+t1.att.total+'</td><td style="'+trT+'color:'+eCol(totAttE)+'">'+eStr(totAttE)+'</td>'
+    +'</tr></tbody></table></div>';
+
+  // TABLEAU 2 : Réception · Défense · Bloc
+  const tbl2='<div style="margin-bottom:12px">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:8px">'
+    +'<thead><tr>'
+    +'<th style="'+thL+'">Joueur</th>'
+    +'<th colspan="6" style="'+thH+'background:#0F6E56">↓ RÉCEPTION</th>'
+    +'<th colspan="6" style="'+thH+'background:#0E7490;border-left:1.5px solid #ddd">🛡 DÉFENSE</th>'
+    +'<th colspan="5" style="'+thH+'background:#6B21A8;border-left:1.5px solid #ddd">🤚 BLOC</th>'
+    +'</tr><tr>'
+    +'<th style="'+thL+'"></th>'
+    +'<th style="'+thS+'">++</th><th style="'+thS+'">+</th><th style="'+thS+'">0</th><th style="'+thS+'">−</th><th style="'+thS+'">N</th><th style="'+thS+'">Eff.</th>'
+    +'<th style="'+thS+'border-left:1.5px solid #ddd">++</th><th style="'+thS+'">+</th><th style="'+thS+'">0</th><th style="'+thS+'">−</th><th style="'+thS+'">N</th><th style="'+thS+'">Eff.</th>'
+    +'<th style="'+thS+'border-left:1.5px solid #ddd">++</th><th style="'+thS+'">+</th><th style="'+thS+'">0</th><th style="'+thS+'">−</th><th style="'+thS+'">N</th>'
+    +'</tr></thead><tbody>'
+    +playerStats.map(x=>tblRow2(x)).join('')
+    +'<tr>'
+    +'<td style="'+trTL+'">Total équipe</td>'
+    +'<td style="'+trT+'color:#085041">'+t1.rec.pp+'</td><td style="'+trT+'">'+t1.rec.p+'</td><td style="'+trT+'">'+t1.rec.z+'</td><td style="'+trT+'color:#791F1F">'+t1.rec.m+'</td><td style="'+trT+'">'+t1.rec.total+'</td><td style="'+trT+'color:'+eCol(totRecE)+'">'+eStr(totRecE)+'</td>'
+    +'<td style="'+trT+'color:#085041;border-left:1.5px solid #ddd">'+t1.def.pp+'</td><td style="'+trT+'">'+t1.def.p+'</td><td style="'+trT+'">'+t1.def.z+'</td><td style="'+trT+'color:#791F1F">'+t1.def.m+'</td><td style="'+trT+'">'+t1.def.total+'</td><td style="'+trT+'color:'+eCol(totDefE)+'">'+eStr(totDefE)+'</td>'
+    +'<td style="'+trT+'color:#085041;border-left:1.5px solid #ddd">'+t1.bloc.pp+'</td><td style="'+trT+'">'+t1.bloc.p+'</td><td style="'+trT+'">'+t1.bloc.z+'</td><td style="'+trT+'color:#791F1F">'+t1.bloc.m+'</td><td style="'+trT+'">'+t1.bloc.total+'</td>'
+    +'</tr></tbody></table></div>';
+
+  // TABLEAU 3 : Évaluation globale
+  const tbl3='<div>'
+    +'<table style="width:100%;border-collapse:collapse;font-size:8px">'
+    +'<thead><tr>'
+    +'<th style="'+thH+'background:#1a1a18;text-align:left;padding:3px 6px">Joueur</th>'
+    +'<th style="'+thH+'background:#1a1a18">Rôle</th>'
+    +'<th style="'+thH+'background:#1a1a18">Actions</th>'
+    +'<th style="'+thH+'background:#1a1a18">Pts ++</th>'
+    +'<th style="'+thH+'background:#1a1a18">% Pts</th>'
+    +'<th style="'+thH+'background:#1a1a18">Eff. globale</th>'
+    +'<th style="'+thH+'background:#1a1a18">Rapport</th>'
+    +'</tr></thead><tbody>'
+    +playerStats.map(x=>tblRow3(x)).join('')
+    +'<tr>'
+    +'<td style="'+trTL+'">Total équipe</td>'
+    +'<td style="'+trT+'">—</td>'
+    +'<td style="'+trT+'font-weight:700">'+totAll+'</td>'
+    +'<td style="'+trT+'color:#085041;font-weight:700">'+totPP+'</td>'
+    +'<td style="'+trT+'color:'+(totPct>=30?'#0F6E56':totPct>=15?'#854F0B':'#A32D2D')+';font-weight:700">'+totPct+'%</td>'
+    +'<td style="'+trT+'color:'+eCol(totEff)+';font-weight:700">'+eStr(totEff)+'</td>'
+    +'<td style="'+trT+'color:'+totRCol+';font-weight:700">'+(totRap>0?'+':'')+totRap+'</td>'
+    +'</tr></tbody></table>'
+    +'<div style="margin-top:5px;font-size:7px;color:#aaa">Eff. = (++ − −) / total &nbsp;·&nbsp; Rapport = (Srv++ + Réc++ + Att++ + Déf++ + Pas++) − (Srv− + Réc− + Att− + Déf− + Pas−) + Bloc++ &nbsp;·&nbsp; % Pts = ++ / total</div>'
+    +'</div>';
+
+  return'<div style="page-break-after:always;padding:12px 14px;font-family:Arial,sans-serif">'
+    +pageHeader+tbl1+tbl2+tbl3
+    +'</div>';
+}
+
+// Page cumul match complet
+function buildMatchSummaryPage(sets){
+  // Agrège toutes les stats de tous les sets
+  const allAgg=S.players.map(()=>({service:[],reception:[],attaque:[],bloc:[],defense:[],passe:[]}));
+  sets.forEach(set=>{set.log.forEach((plog,pi)=>{CATS.forEach(cat=>{allAgg[pi][cat]=(allAgg[pi][cat]||[]).concat(plog[cat]||[]);});});});
+  // Scores
+  const done=sets.filter(s=>s.us!==null);
+  const wUs=done.filter(s=>s.us>s.them).length,wThem=done.filter(s=>s.them>s.us).length;
+  const winner=wUs>wThem?S.teamName:wThem>wUs?S.teamAdverse:'Égalité';
+  const setScores=done.map((s,i)=>'Set '+(i+1)+' : '+s.us+'–'+s.them).join(' · ');
+  // Utilise buildSetPDFPage avec un set fictif agrégé
+  const fakeSet={us:null,them:null,log:allAgg.map(row=>({...row}))};
+  const inner=buildSetPDFPage(-1,fakeSet).replace('SET 0','MATCH COMPLET').replace('En cours',''+wUs+' – '+wThem+' sets');
+  return inner
+    .replace('page-break-after:always','page-break-after:always')
+    .replace('SET -1 — TIE-BREAK','RÉCAPITULATIF MATCH')
+    .replace('SET -1','RÉCAPITULATIF MATCH')
+    .replace(S.teamName+' vs '+S.teamAdverse+'</div></div>',S.teamName+' vs '+S.teamAdverse+' &nbsp;|&nbsp; '+setScores+'</div></div>');
 }
 
 function openPDFWindow(html, filename) {
@@ -974,11 +1034,47 @@ function openPDFWindow(html, filename) {
 function exportPDF(){
   const done=S.sets.filter(s=>s.us!==null),sets=done.length>0?done:S.sets;
   const filename='stats-'+S.teamName+'-vs-'+S.teamAdverse+'.html';
-  openPDFWindow('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Stats — '+S.teamName+' vs '+S.teamAdverse+'</title><style>@page{size:A4 landscape;margin:0}body{margin:0;padding:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}</style></head><body>'+sets.map((set,i)=>buildSetPDFPage(i,set)).join('')+'<script>window.onload=function(){window.print()}<\/script></body></html>', filename);
+  const pages=sets.map((set,i)=>buildSetPDFPage(i,set)).join('')+buildMatchSummaryPage(sets);
+  openPDFWindow('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Stats — '+S.teamName+' vs '+S.teamAdverse+'</title><style>@page{size:A4 portrait;margin:8mm}body{margin:0;padding:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}</style></head><body>'+pages+'<script>window.onload=function(){window.print()}<\/script></body></html>', filename);
 }
 function exportSetPDF(i){
   const filename='stats-set'+(i+1)+'-'+S.teamName+'-vs-'+S.teamAdverse+'.html';
-  openPDFWindow('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Set '+(i+1)+' — '+S.teamName+' vs '+S.teamAdverse+'</title><style>@page{size:A4 landscape;margin:0}body{margin:0;padding:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}</style></head><body>'+buildSetPDFPage(i,S.sets[i])+'<script>window.onload=function(){window.print()}<\/script></body></html>', filename);
+  openPDFWindow('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Set '+(i+1)+' — '+S.teamName+' vs '+S.teamAdverse+'</title><style>@page{size:A4 portrait;margin:8mm}body{margin:0;padding:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}</style></head><body>'+buildSetPDFPage(i,S.sets[i])+'<script>window.onload=function(){window.print()}<\/script></body></html>', filename);
+}
+
+// Rapport gratuit pour testeurs sans wallet TestNet activé
+function getFreeReport() {
+  const email = document.getElementById('pay-email').value.trim();
+  if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    document.getElementById('pay-error').textContent='Veuillez saisir une adresse email valide.';
+    document.getElementById('pay-error').classList.add('show');
+    return;
+  }
+  localStorage.setItem('volleyball_user_email', email);
+  closePayModal();
+  setPayStatus('');
+  // Générer et envoyer directement sans paiement
+  const isFull = pendingPDF.type === 'all';
+  sendFreeReportByEmail(email, isFull, pendingPDF.setIdx);
+}
+
+async function sendFreeReportByEmail(email, isFull, setIdx) {
+  showFlash('📧 Envoi du rapport en cours...');
+  const done=S.sets.filter(s=>s.us!==null);
+  const sets=isFull?(done.length>0?done:S.sets):[S.sets[setIdx]];
+  const setIndices=isFull?sets.map((_,i)=>i):[setIdx];
+  const pages=sets.map((set,i)=>buildSetPDFPage(setIndices[i],set)).join('')+(isFull?buildMatchSummaryPage(sets):'');
+  const pdfHtml='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Stats</title>'
+    +'<style>@page{size:A4 portrait;margin:8mm}body{margin:0;padding:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}</style>'
+    +'</head><body>'+pages+'</body></html>';
+  const subject=isFull?'Stats match complet — '+S.teamName+' vs '+S.teamAdverse:'Stats Set '+(setIdx+1)+' — '+S.teamName+' vs '+S.teamAdverse;
+  try {
+    const res=await fetch(BACKEND+'/api/send-pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,subject,pdfHtml,teamName:S.teamName,teamAdverse:S.teamAdverse,isFull,setIdx})});
+    if(!res.ok)throw new Error('Erreur envoi');
+    showFlash('📧 Rapport envoyé à '+email+' !');
+  } catch(e){
+    showFlash('⚠️ Erreur envoi : '+e.message);
+  }
 }
 
 /* ---- RESET ---- */
@@ -1398,9 +1494,10 @@ async function sendPDFByEmail(email, isFull, setIdx) {
     const done = S.sets.filter(s=>s.us!==null);
     const sets = isFull ? (done.length>0?done:S.sets) : [S.sets[setIdx]];
     const setIndices = isFull ? sets.map((_,i)=>i) : [setIdx];
+    const pages=sets.map((set,i)=>buildSetPDFPage(setIndices[i],set)).join('')+(isFull?buildMatchSummaryPage(sets):'');
     const pdfHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Stats — '+S.teamName+' vs '+S.teamAdverse+'</title>'
-      +'<style>@page{size:A4 landscape;margin:0}body{margin:0;padding:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}</style>'
-      +'</head><body>'+sets.map((set,i)=>buildSetPDFPage(setIndices[i],set)).join('')+'</body></html>';
+      +'<style>@page{size:A4 portrait;margin:8mm}body{margin:0;padding:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}</style>'
+      +'</head><body>'+pages+'</body></html>';
 
     const subject = isFull
       ? 'Stats match complet — ' + S.teamName + ' vs ' + S.teamAdverse
