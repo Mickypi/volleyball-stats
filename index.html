@@ -538,6 +538,7 @@ function startMatch(){
     document.getElementById('error-detail').innerHTML='Le'+(dupes.length>1?'s':'')+' numéro'+(dupes.length>1?'s':'')+' <strong>'+dupes.join(', ')+'</strong> est utilisé plusieurs fois. Chaque joueur doit avoir un numéro unique.';
     document.getElementById('error-popup').classList.add('active');return;
   }
+  S.teamName=document.getElementById('team-name').value||'Mon équipe';
   S.teamAdverse=document.getElementById('team-adverse').value||'Adversaire';
   S.players.forEach(p=>{p.onCourt=(p.role==='enjeu');p.isActiveLibero=false;});
   let fl=true;S.players.forEach(p=>{if(p.role==='libero'){p.isActiveLibero=fl;fl=false;}});
@@ -558,6 +559,8 @@ function renderSaisie(){
   document.getElementById('vs-us').textContent='🔵 '+S.teamName;
   document.getElementById('vs-them').textContent=S.teamAdverse+' 🔴';
   renderSetTabs();renderPlayerGrid();renderLiberoZone();renderLastActions();updateStepNums();renderChangePanelSelects();updateActionButtons();
+  // Scroll vers le haut de la saisie
+  setTimeout(()=>smoothScrollTo('set-title'),100);
 }
 function renderSetTabs(){
   document.getElementById('set-tabs').innerHTML=S.sets.map((s,i)=>{
@@ -592,8 +595,25 @@ function updateActionButtons(){
     else btn.classList.remove('disabled');
   });
 }
-function selectPlayer(i){S.sel.player=i;S.sel.action=null;CATS.forEach(k=>document.getElementById('ab-'+k).classList.remove('selected'));renderPlayerGrid();renderLiberoZone();updateStepNums();updateActionButtons();}
-function selectLibero(){const a=getActiveLibero();if(!a)return;S.sel.player=a.i;S.sel.action=null;CATS.forEach(k=>document.getElementById('ab-'+k).classList.remove('selected'));renderPlayerGrid();renderLiberoZone();updateStepNums();updateActionButtons();}
+function smoothScrollTo(id){
+  const el=document.getElementById(id);
+  if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function selectPlayer(i){
+  S.sel.player=i;S.sel.action=null;
+  CATS.forEach(k=>document.getElementById('ab-'+k).classList.remove('selected'));
+  renderPlayerGrid();renderLiberoZone();updateStepNums();updateActionButtons();
+  // Scroll vers le type d'action
+  setTimeout(()=>smoothScrollTo('sn2'),100);
+}
+function selectLibero(){
+  const a=getActiveLibero();if(!a)return;
+  S.sel.player=a.i;S.sel.action=null;
+  CATS.forEach(k=>document.getElementById('ab-'+k).classList.remove('selected'));
+  renderPlayerGrid();renderLiberoZone();updateStepNums();updateActionButtons();
+  setTimeout(()=>smoothScrollTo('sn2'),100);
+}
 function switchLibero(){
   const lib=getLiberos();if(lib.length<2)return;
   lib.forEach(p=>{S.players[p.i].isActiveLibero=!S.players[p.i].isActiveLibero;});
@@ -603,20 +623,37 @@ function switchLibero(){
 }
 function getAllActions(){
   const set=S.sets[S.cur],all=[];
-  S.players.forEach((p,pi)=>{CATS.forEach(cat=>set.log[pi][cat].forEach((g,ai)=>all.push({player:'#'+p.num+' '+p.name,pi,cat,grade:g,ai})));});
+  S.players.forEach((p,pi)=>{
+    CATS.forEach(cat=>{
+      (set.log[pi][cat]||[]).forEach((g,ai)=>{
+        all.push({player:'#'+p.num+' '+p.name,pi,cat,grade:g,ai});
+      });
+    });
+  });
+  // Trier par ordre d'ajout — on garde l'ordre naturel
   return all;
 }
 function renderLastActions(){
   const all=getAllActions(),block=document.getElementById('last-actions-block');
   if(!all.length){block.style.display='none';return;}
   block.style.display='block';
-  document.getElementById('last-actions-list').innerHTML=all.slice(-3).reverse().map(a=>'<div class="log-item"><span style="flex:1">'+escHtml(a.player)+' — '+ACTIONS[a.cat]+' <span class="grade-pill '+GRADE_CLASSES[a.grade]+'">'+a.grade+'</span></span><button class="delete-btn" onclick="deleteAction('+a.pi+',\''+a.cat+'\','+a.ai+')">🗑</button></div>').join('');
+  // Toujours afficher les 3 dernières en reconstruisant la liste complète
+  const last3=all.slice(-3).reverse();
+  document.getElementById('last-actions-list').innerHTML=last3.map(a=>
+    '<div class="log-item"><span style="flex:1">'+escHtml(a.player)+' — '+ACTIONS[a.cat]
+    +' <span class="grade-pill '+GRADE_CLASSES[a.grade]+'">'+a.grade+'</span></span>'
+    +'<button class="delete-btn" onclick="deleteAction('+a.pi+',\''+a.cat+'\','+a.ai+')">🗑</button></div>'
+  ).join('');
 }
 function deleteAction(pi,cat,ai){S.sets[S.cur].log[pi][cat].splice(ai,1);renderLastActions();showFlash('Action supprimée');}
 function showFlash(msg){const f=document.getElementById('flash');f.textContent=msg;f.classList.add('show');setTimeout(()=>f.classList.remove('show'),1600);}
 function selectAction(a){
   if(isLiberoSelected()&&!LIBERO_ACTIONS.includes(a))return;
-  S.sel.action=a;CATS.forEach(k=>document.getElementById('ab-'+k).classList.toggle('selected',k===a));updateStepNums();
+  S.sel.action=a;
+  CATS.forEach(k=>document.getElementById('ab-'+k).classList.toggle('selected',k===a));
+  updateStepNums();
+  // Scroll vers la qualité
+  setTimeout(()=>smoothScrollTo('sn3'),100);
 }
 function selectAndValidate(g){
   if(S.sel.player===null||!S.sel.action)return;
@@ -624,7 +661,9 @@ function selectAndValidate(g){
   S.sets[S.cur].log[S.sel.player][S.sel.action].push(g);
   S.sel.action=null;CATS.forEach(k=>document.getElementById('ab-'+k).classList.remove('selected'));
   renderLastActions();updateStepNums();showFlash('✓ Action enregistrée');
-  saveCurrentMatch(); // sauvegarde auto
+  saveCurrentMatch();
+  // Scroll vers dernières actions pour voir la mise à jour
+  setTimeout(()=>smoothScrollTo('last-actions-block'),150);
 }
 function updateStepNums(){
   const s=S.sel;
