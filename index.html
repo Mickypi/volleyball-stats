@@ -314,7 +314,10 @@ input:focus{outline:none;border-color:#185FA5;box-shadow:0 0 0 3px rgba(24,95,16
 
   <div id="screen-setup" class="screen active">
     <img src="Logo_Appli_Volley.png" class="mini-logo" alt="logo" onerror="this.style.display='none'">
-    <h2>Nouveau match</h2>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <button class="btn btn-sm" onclick="backFromSetup()">← Retour</button>
+      <h2 style="margin-bottom:0">Nouveau match</h2>
+    </div>
     <div class="team-inputs">
       <div class="team-block"><div class="team-block-label us">🔵 Notre équipe</div><input class="text-input" id="team-name" type="text" placeholder="Nom équipe"></div>
       <div class="team-block"><div class="team-block-label them">🔴 Adversaire</div><input class="text-input" id="team-adverse" type="text" placeholder="Nom adversaire"></div>
@@ -487,6 +490,16 @@ function goSetup(){
   document.getElementById('screen-splash').style.display='none';
   document.getElementById('screen-mes-matchs').classList.remove('active');
   document.getElementById('screen-app').classList.add('active');
+  document.getElementById('screen-setup').classList.add('active');
+  document.getElementById('screen-match').classList.remove('active');
+}
+
+function backFromSetup(){
+  // Retour au splash
+  document.getElementById('screen-app').classList.remove('active');
+  document.getElementById('screen-setup').classList.remove('active');
+  document.getElementById('screen-splash').style.display='';
+  document.getElementById('screen-splash').classList.add('active');
 }
 
 /* ---- SETUP ---- */
@@ -828,8 +841,12 @@ function buildStatsHTML(agg){
 }
 function renderStats(){
   const done=S.sets.filter(s=>s.us!==null);
-  document.getElementById('set-filter').innerHTML='<button class="fbtn'+(S.statsFilter==='all'?' active':'')+'" onclick="S.statsFilter=\'all\';renderStats()">Tous les sets</button>'+done.map((s,i)=>'<button class="fbtn'+(S.statsFilter===i?' active':'')+'" onclick="S.statsFilter='+i+';renderStats()">Set '+(i+1)+'</button>').join('');
-  const su=S.statsFilter==='all'?S.sets:[S.sets[S.statsFilter]];
+  // Pour le filtre : afficher tous les sets y compris le set en cours (même non terminé)
+  const allSets=S.sets;
+  document.getElementById('set-filter').innerHTML=
+    '<button class="fbtn'+(S.statsFilter==='all'?' active':'')+'" onclick="S.statsFilter=\'all\';renderStats()">Tous les sets</button>'
+    +allSets.map((s,i)=>'<button class="fbtn'+(S.statsFilter===i?' active':'')+'" onclick="S.statsFilter='+i+';renderStats()">Set '+(i+1)+(s.us===null?' ●':'')+'</button>').join('');
+  const su=S.statsFilter==='all'?allSets:[allSets[S.statsFilter]];
   document.getElementById('stats-content').innerHTML=buildStatsHTML(aggregateStats(su));
 }
 
