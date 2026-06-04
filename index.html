@@ -274,8 +274,8 @@ input:focus{outline:none;border-color:#185FA5;box-shadow:0 0 0 3px rgba(24,95,16
     <div class="modal-sub" id="score-modal-sub"></div>
     <div id="score-modal-scoreinputs">
       <div class="rule-hint" id="score-rule-hint"></div>
-      <div class="score-row"><label id="us-label">—</label><input class="score-input" type="number" id="score-us" min="0" max="50" value="0" oninput="liveScoreValidate()"></div>
-      <div class="score-row"><label id="them-label">—</label><input class="score-input" type="number" id="score-them" min="0" max="50" value="0" oninput="liveScoreValidate()"></div>
+      <div class="score-row"><label id="us-label">—</label><input class="score-input" type="number" id="score-us" min="0" max="50" placeholder="0" oninput="liveScoreValidate()"></div>
+      <div class="score-row"><label id="them-label">—</label><input class="score-input" type="number" id="score-them" min="0" max="50" placeholder="0" oninput="liveScoreValidate()"></div>
       <div class="score-error-msg" id="score-error-msg"></div>
       <div class="score-winner-hint" id="score-winner-hint"></div>
     </div>
@@ -470,8 +470,16 @@ function validateSetScore(us,them,setIdx){
   return{ok:true};
 }
 function liveScoreValidate(){
-  const us=parseInt(document.getElementById('score-us').value)||0;
-  const them=parseInt(document.getElementById('score-them').value)||0;
+  const usVal=document.getElementById('score-us').value;
+  const themVal=document.getElementById('score-them').value;
+  // Si un champ est vide, ne pas valider encore
+  if(usVal===''||themVal===''){
+    document.getElementById('score-error-msg').classList.remove('show');
+    document.getElementById('score-winner-hint').innerHTML='';
+    return;
+  }
+  const us=parseInt(usVal)||0;
+  const them=parseInt(themVal)||0;
   const idx=scoreModalMode==='edit'?editSetIdx:S.cur;
   const res=validateSetScore(us,them,idx);
   const errEl=document.getElementById('score-error-msg'),winEl=document.getElementById('score-winner-hint');
@@ -752,8 +760,8 @@ function openScoreModal(mode,setIdx){
   document.getElementById('score-modal-scoreinputs').style.display='block';
   document.getElementById('us-label').textContent='🔵 '+S.teamName;
   document.getElementById('them-label').textContent='🔴 '+S.teamAdverse;
-  document.getElementById('score-us').value=existing&&existing.us!==null?existing.us:0;
-  document.getElementById('score-them').value=existing&&existing.them!==null?existing.them:0;
+  document.getElementById('score-us').value=existing&&existing.us!==null?existing.us:'';
+  document.getElementById('score-them').value=existing&&existing.them!==null?existing.them:'';
   document.getElementById('score-error-msg').classList.remove('show');
   document.getElementById('score-winner-hint').innerHTML='';
   document.getElementById('score-us').classList.remove('input-error');
