@@ -457,7 +457,7 @@ let changePanelOpen=false;
 let scoreModalMode='endset';
 let editSetIdx=-1;
 
-function mkLog(){return{service:[],reception:[],attaque:[],bloc:[],defense:[],passe:[]}}
+function mkLog(){return{service:[],reception:[],attaque:[],bloc:[],defense:[],passe:[],actionLog:[]}}
 function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}
 
 /* ---- SCORE VALIDATION ---- */
@@ -636,29 +636,58 @@ function switchLibero(){
 }
 function getAllActions(){
   const set=S.sets[S.cur],all=[];
+  // On reconstruit dans l'ordre chronologique en utilisant un index global
+  // Chaque action a été ajoutée à la fin de son tableau — on interleave par position
+  const maxLen=Math.max(0,...S.players.map((_,pi)=>
+    CATS.reduce((acc,cat)=>acc+(set.log[pi][cat]||[]).length,0)
+  ));
+  // Collecter toutes les actions avec leur index global d'ajout
+  // L'ordre naturel est : on parcourt joueur×cat, mais les actions ont été ajoutées
+  // séquentiellement donc on les collecte toutes et on les trie par (pi, cat, ai)
+  // Ce n'est pas chronologique — on utilise un compteur global stocké dans S
   S.players.forEach((p,pi)=>{
     CATS.forEach(cat=>{
       (set.log[pi][cat]||[]).forEach((g,ai)=>{
-        all.push({player:'#'+p.num+' '+p.name,pi,cat,grade:g,ai});
+        // seq = position globale approximée
+        all.push({player:'#'+p.num+' '+p.name,pi,cat,grade:g,ai,
+          seq:(set.log[pi][cat]._seq&&set.log[pi][cat]._seq[ai])||0});
       });
     });
   });
-  // Trier par ordre d'ajout — on garde l'ordre naturel
+  // Trier par séquence d'ajout
+  all.sort((a,b)=>a.seq-b.seq);
   return all;
 }
+
 function renderLastActions(){
-  const all=getAllActions(),block=document.getElementById('last-actions-block');
-  if(!all.length){block.style.display='none';return;}
+  const set=S.sets[S.cur],block=document.getElementById('last-actions-block');
+  // Utiliser directement le log chronologique stocké dans S.actionLog
+  const log=set.actionLog||[];
+  if(!log.length){block.style.display='none';return;}
   block.style.display='block';
-  // Toujours afficher les 3 dernières en reconstruisant la liste complète
-  const last3=all.slice(-3).reverse();
-  document.getElementById('last-actions-list').innerHTML=last3.map(a=>
-    '<div class="log-item"><span style="flex:1">'+escHtml(a.player)+' — '+ACTIONS[a.cat]
-    +' <span class="grade-pill '+GRADE_CLASSES[a.grade]+'">'+a.grade+'</span></span>'
-    +'<button class="delete-btn" onclick="deleteAction('+a.pi+',\''+a.cat+'\','+a.ai+')">🗑</button></div>'
-  ).join('');
+  const last3=log.slice(-3);
+  document.getElementById('last-actions-list').innerHTML=[...last3].reverse().map((a,reverseIdx)=>{
+    const realIdx=log.length-1-(reverseIdx);
+    return'<div class="log-item"><span style="flex:1">'+escHtml(a.player)+' — '+ACTIONS[a.cat]
+      +' <span class="grade-pill '+GRADE_CLASSES[a.grade]+'">'+a.grade+'</span></span>'
+      +'<button class="delete-btn" onclick="deleteActionLog('+realIdx+')">🗑</button></div>';
+  }).join('');
 }
-function deleteAction(pi,cat,ai){S.sets[S.cur].log[pi][cat].splice(ai,1);renderLastActions();showFlash('Action supprimée');}
+function deleteActionLog(logIdx){
+  const set=S.sets[S.cur];
+  if(!set.actionLog||logIdx<0||logIdx>=set.actionLog.length)return;
+  const a=set.actionLog[logIdx];
+  // Supprimer aussi du log par catégorie
+  const catLog=set.log[a.pi][a.cat];
+  if(catLog&&a.ai<catLog.length)catLog.splice(a.ai,1);
+  // Mettre à jour les ai dans actionLog pour les actions suivantes du même joueur/cat
+  set.actionLog.splice(logIdx,1);
+  set.actionLog.forEach(entry=>{
+    if(entry.pi===a.pi&&entry.cat===a.cat&&entry.ai>a.ai)entry.ai--;
+  });
+  renderLastActions();showFlash('Action supprimée');
+  saveCurrentMatch();
+}
 function showFlash(msg){const f=document.getElementById('flash');f.textContent=msg;f.classList.add('show');setTimeout(()=>f.classList.remove('show'),1600);}
 function selectAction(a){
   if(isLiberoSelected()&&!LIBERO_ACTIONS.includes(a))return;
@@ -671,11 +700,18 @@ function selectAction(a){
 function selectAndValidate(g){
   if(S.sel.player===null||!S.sel.action)return;
   const btn=document.getElementById(GRADE_IDS[g]);btn.classList.add('selected');setTimeout(()=>btn.classList.remove('selected'),300);
-  S.sets[S.cur].log[S.sel.player][S.sel.action].push(g);
+  const set=S.sets[S.cur];
+  const ai=set.log[S.sel.player][S.sel.action].length;
+  set.log[S.sel.player][S.sel.action].push(g);
+  // Log chronologique
+  if(!set.actionLog)set.actionLog=[];
+  set.actionLog.push({
+    player:'#'+S.players[S.sel.player].num+' '+S.players[S.sel.player].name,
+    pi:S.sel.player,cat:S.sel.action,grade:g,ai
+  });
   S.sel.action=null;CATS.forEach(k=>document.getElementById('ab-'+k).classList.remove('selected'));
   renderLastActions();updateStepNums();showFlash('✓ Action enregistrée');
   saveCurrentMatch();
-  // Scroll vers dernières actions pour voir la mise à jour
   setTimeout(()=>smoothScrollTo('last-actions-block'),150);
 }
 function updateStepNums(){
@@ -801,8 +837,14 @@ function confirmEditScore(){
 
 /* ---- STATS (écran) ---- */
 function aggregateStats(setsToUse){
-  const agg=S.players.map(()=>({service:[],reception:[],attaque:[],bloc:[]}));
-  setsToUse.forEach(set=>{set.log.forEach((plog,pi)=>{CATS.forEach(cat=>{agg[pi][cat]=agg[pi][cat].concat(plog[cat]);});});});
+  const agg=S.players.map(()=>({service:[],reception:[],attaque:[],bloc:[],defense:[],passe:[]}));
+  setsToUse.forEach(set=>{
+    set.log.forEach((plog,pi)=>{
+      CATS.forEach(cat=>{
+        if(plog[cat])agg[pi][cat]=agg[pi][cat].concat(plog[cat]);
+      });
+    });
+  });
   return agg;
 }
 function catStats(grades){
@@ -815,22 +857,22 @@ function buildStatsHTML(agg){
   let html='';
   const catIcos={service:'↑',reception:'↓',attaque:'⚡',bloc:'🤚',defense:'🛡',passe:'🤲'};
   CATS.forEach(cat=>{
-    if(!S.players.some((_,i)=>agg[i][cat].length>0))return;
+    if(!S.players.some((_,i)=>(agg[i][cat]||[]).length>0))return;
     html+='<div class="stats-section"><div class="stats-section-title">'+catIcos[cat]+' '+CAT_LABELS[cat]+'</div><div class="tbl-wrap"><table class="stbl"><thead><tr><th class="lh">Joueur</th><th>++</th><th>+</th><th>0</th><th>−</th><th>Total</th><th>Eff.</th></tr></thead><tbody>';
     let tPP=0,tP=0,tZ=0,tM=0,tN=0;
     S.players.forEach((p,i)=>{
-      const g=agg[i][cat];if(!g.length)return;
+      const g=agg[i][cat]||[];if(!g.length)return;
       const cs=catStats(g);tPP+=cs.pp;tP+=cs.p;tZ+=cs.z;tM+=cs.m;tN+=cs.total;
       html+='<tr><td class="lh">#'+escHtml(p.num)+' '+escHtml(p.name)+'</td><td class="cnt-pp">'+cs.pp+'</td><td>'+cs.p+'</td><td>'+cs.z+'</td><td class="cnt-m">'+cs.m+'</td><td>'+cs.total+'</td><td class="'+effClass(cs.eff)+'">'+effStr(cs.eff)+'</td></tr>';
     });
     const tE=tN>0?Math.round(((tPP-tM)/tN)*100):null;
     html+='<tr class="total-row"><td class="lh">Total équipe</td><td class="cnt-pp">'+tPP+'</td><td>'+tP+'</td><td>'+tZ+'</td><td class="cnt-m">'+tM+'</td><td>'+tN+'</td><td class="'+effClass(tE)+'">'+effStr(tE)+'</td></tr></tbody></table></div></div>';
   });
-  if(!S.players.some((_,i)=>CATS.some(c=>agg[i][c].length>0)))return'<p style="color:#888;padding:1rem 0;font-size:14px">Aucune stat enregistrée.</p>';
+  if(!S.players.some((_,i)=>CATS.some(c=>(agg[i][c]||[]).length>0)))return'<p style="color:#888;padding:1rem 0;font-size:14px">Aucune stat enregistrée.</p>';
   html+='<div class="stats-section"><div class="stats-section-title">📋 Récapitulatif global</div><div class="tbl-wrap"><table class="stbl"><thead><tr><th class="lh">Joueur</th><th>Pts ++</th><th>Joués</th><th>% Pts</th><th>Rapport</th></tr></thead><tbody>';
   let gPP=0,gT=0;
   S.players.forEach((p,i)=>{
-    const allG=CATS.flatMap(c=>agg[i][c]);if(!allG.length)return;
+    const allG=CATS.flatMap(c=>agg[i][c]||[]);if(!allG.length)return;
     const pp=allG.filter(g=>g==='++').length,m=allG.filter(g=>g==='-').length,total=allG.length;
     const pct=Math.round((pp/total)*100),r=pp-m;gPP+=pp;gT+=total;
     html+='<tr><td class="lh">#'+escHtml(p.num)+' '+escHtml(p.name)+'</td><td class="cnt-pp">'+pp+'</td><td>'+total+'</td><td class="'+(pct>=30?'eff-pos':pct>=15?'eff-neu':'eff-neg')+'">'+pct+'%</td><td class="'+(r>0?'eff-pos':r<0?'eff-neg':'eff-neu')+'">'+(r>0?'+':'')+r+'</td></tr>';
