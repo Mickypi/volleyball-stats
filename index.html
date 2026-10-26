@@ -295,7 +295,7 @@ input:focus{outline:none;border-color:#185FA5;box-shadow:0 0 0 3px rgba(24,95,16
   <div class="splash-tagline">My Team Simple Stats</div>
   <button class="btn-new-match" onclick="goSetup()">🏐 Nouveau Match</button>
   <button class="btn-mes-matchs" onclick="showMesMatchs()">📋 Mes Matchs</button>
-  <div class="splash-version">v1.3</div>
+  <div class="splash-version">v1.4</div>
 </div>
 
 <!-- ÉCRAN MES MATCHS -->
@@ -839,6 +839,7 @@ function doNextSet(){
   document.getElementById('score-modal').classList.remove('active');
   S.sets.push({us:null,them:null,log:S.players.map(()=>mkLog())});
   S.cur=S.sets.length-1;S.sel={player:null,action:null};renderSaisie();
+  saveCurrentMatch(); // sauvegarde du passage au set suivant
 }
 function doEndMatch(){document.getElementById('score-modal').classList.remove('active');showEndMatch();}
 function confirmEditScore(){
@@ -1269,8 +1270,23 @@ function loadMatch(id) {
   // S'assurer que S.cur pointe bien sur le bon set en cours
   // (le dernier set non terminé, ou le dernier set si tous terminés)
   const lastUnfinished = S.sets.findIndex(s => s.us === null);
+  let reopenEndSet = false;
   if(!S.matchOver) {
-    S.cur = lastUnfinished >= 0 ? lastUnfinished : S.sets.length - 1;
+    if(lastUnfinished >= 0) {
+      S.cur = lastUnfinished;
+    } else {
+      // Tous les sets sont validés : l'utilisateur a quitté juste après avoir saisi le score
+      const sc = getSetsScore();
+      if(sc.us >= 3 || sc.them >= 3) {
+        // Match gagné mais pas encore clôturé : on rouvre le choix de fin de set
+        S.cur = S.sets.length - 1;
+        reopenEndSet = true;
+      } else {
+        // Le set suivant n'avait pas encore été créé : on le crée maintenant
+        S.sets.push({ us: null, them: null, log: S.players.map(() => mkLog()) });
+        S.cur = S.sets.length - 1;
+      }
+    }
   }
   // Reconstruire l'état onCourt et isActiveLibero des joueurs
   // (parfois perdu lors de la sérialisation JSON)
@@ -1293,6 +1309,15 @@ function loadMatch(id) {
     showEndMatch();
   } else {
     renderSaisie();
+    if(reopenEndSet) {
+      const last = S.sets[S.cur];
+      scoreModalMode = 'endset'; editSetIdx = S.cur;
+      document.getElementById('tab-saisie').style.display = 'none';
+      showEndSetActions(last.us, last.them);
+      document.getElementById('score-modal').classList.add('active');
+    } else {
+      saveCurrentMatch();
+    }
   }
   showFlash('Match chargé — Set ' + (S.cur + 1));
 }
