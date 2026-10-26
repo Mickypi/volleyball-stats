@@ -210,10 +210,30 @@ input:focus{outline:none;border-color:#185FA5;box-shadow:0 0 0 3px rgba(24,95,16
 .error-count-badge{display:inline-block;background:#FCEBEB;color:#A32D2D;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:600;margin-bottom:12px}
 .error-detail{font-size:12px;color:#888;margin-bottom:18px;line-height:1.6}
 .error-close-btn{width:100%;padding:12px;border-radius:10px;border:none;background:#185FA5;color:#E6F1FB;font-size:15px;font-weight:500;cursor:pointer;font-family:inherit}
+
+/* GRANDS ÉCRANS (tablette, paysage) — classes posées par applyRotation() selon la largeur affichée */
+body.wide #app{max-width:1100px;padding:16px 24px 56px}
+body.wide .saisie-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+body.wide .saisie-cards .card{margin-bottom:0}
+body.wide .saisie-cards .card:last-child{grid-column:1 / -1}
+body.wide .action-grid{grid-template-columns:repeat(3,1fr)}
+body.wide .grade-grid{grid-template-columns:repeat(4,1fr)}
+body.xwide .saisie-cards{grid-template-columns:1.1fr 1.2fr 0.7fr}
+body.xwide .saisie-cards .card:last-child{grid-column:auto}
+body.xwide .grade-grid{grid-template-columns:1fr}
+
+/* BOUTON PIVOTER + ROTATION FORCÉE */
+.rotate-btn{position:fixed;right:12px;bottom:12px;z-index:90;width:44px;height:44px;border-radius:50%;border:1.5px solid #185FA5;background:rgba(255,255,255,0.92);color:#185FA5;font-size:22px;line-height:1;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center;font-family:inherit}
+.rotate-btn:active{transform:scale(0.94)}
+body.rotated{position:fixed;top:0;left:var(--vpw,100vw);width:var(--vph,100vh);height:var(--vpw,100vw);min-height:0;transform-origin:top left;transform:rotate(90deg);overflow:hidden}
+body.rotated > .screen.active{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch}
+body.rotated #screen-splash{min-height:100%}
+body.rotated .modal-sheet,body.rotated .pay-modal,body.rotated .error-box{max-height:100%;overflow-y:auto}
 </style>
 </head>
 <body>
 
+<button id="rotate-btn" class="rotate-btn" onclick="toggleRotation()" title="Pivoter l'écran" aria-label="Pivoter l'écran">⟳</button>
 <div class="flash" id="flash"></div>
 
 <!-- PI AUTH SCREEN -->
@@ -295,7 +315,7 @@ input:focus{outline:none;border-color:#185FA5;box-shadow:0 0 0 3px rgba(24,95,16
   <div class="splash-tagline">My Team Simple Stats</div>
   <button class="btn-new-match" onclick="goSetup()">🏐 Nouveau Match</button>
   <button class="btn-mes-matchs" onclick="showMesMatchs()">📋 Mes Matchs</button>
-  <div class="splash-version">v1.4</div>
+  <div class="splash-version">v1.5</div>
 </div>
 
 <!-- ÉCRAN MES MATCHS -->
@@ -305,7 +325,7 @@ input:focus{outline:none;border-color:#185FA5;box-shadow:0 0 0 3px rgba(24,95,16
     <button class="btn btn-sm" onclick="backToSplash()">← Retour</button>
     <h2 style="margin-bottom:0">📋 Mes Matchs</h2>
   </div>
-  <div class="hint">Jusqu'à <strong>4 matchs</strong> sauvegardés sur cet appareil. Les matchs les plus anciens sont remplacés en premier.</div>
+  <div class="hint">Jusqu'à <strong>10 matchs</strong> sauvegardés sur cet appareil. Les matchs les plus anciens sont remplacés en premier.</div>
   <div id="mes-matchs-list"></div>
 </div>
 </div>
@@ -369,6 +389,7 @@ input:focus{outline:none;border-color:#185FA5;box-shadow:0 0 0 3px rgba(24,95,16
         <div style="font-size:13px;font-weight:500;margin-bottom:8px;color:#1a1a18">Dernières actions</div>
         <div id="last-actions-list"></div>
       </div>
+      <div class="saisie-cards">
       <div class="card">
         <div class="step-label"><span class="step-num active" id="sn1">1</span> Choisir un joueur</div>
         <div class="player-grid" id="player-grid"></div>
@@ -406,6 +427,7 @@ input:focus{outline:none;border-color:#185FA5;box-shadow:0 0 0 3px rgba(24,95,16
           <button class="grade-btn z"  id="gb-z"  onclick="selectAndValidate('0')">0<span class="glabel">Neutre</span></button>
           <button class="grade-btn m"  id="gb-m"  onclick="selectAndValidate('-')">−<span class="glabel">Mauvais</span></button>
         </div>
+      </div>
       </div>
     </div>
 
@@ -1210,9 +1232,9 @@ function resetMatch(){
 initPlayers();
 
 /* ============================================================
-   SAUVEGARDE DES MATCHS (localStorage — 4 max)
+   SAUVEGARDE DES MATCHS (localStorage — 10 max)
    ============================================================ */
-const MAX_MATCHS = 4;
+const MAX_MATCHS = 10;
 const STORAGE_KEY = 'volleyball_matchs';
 
 function getSavedMatchs() {
@@ -1243,7 +1265,7 @@ function saveCurrentMatch() {
   if(existingIdx >= 0) {
     matchs[existingIdx] = matchData;
   } else {
-    // Si 4 matchs, supprimer le plus ancien
+    // Si 10 matchs, supprimer le plus ancien
     if(matchs.length >= MAX_MATCHS) matchs.shift();
     matchs.push(matchData);
   }
@@ -1678,6 +1700,67 @@ function setPayStatus(msg) { document.getElementById('pay-status').textContent =
 function showPayError(msg) { const el = document.getElementById('pay-error'); el.textContent = msg; el.classList.add('show'); }
 
 // Démarrage
+/* ============================================================
+   ROTATION DE L'ÉCRAN (tablette / Pi Browser)
+   1) essaie la vraie rotation (plein écran + screen.orientation.lock)
+   2) sinon, fait pivoter l'affichage de l'appli à 90° dans la fenêtre
+   ============================================================ */
+const ROTATE_KEY = 'volleyball_force_orientation';
+let forcedOrientation = null; // null | 'landscape' | 'portrait'
+function deviceIsPortrait() { return window.innerHeight >= window.innerWidth; }
+function applyRotation() {
+  const r = document.documentElement.style;
+  r.setProperty('--vpw', window.innerWidth + 'px');
+  r.setProperty('--vph', window.innerHeight + 'px');
+  // Pivoter seulement si l'appareil n'est pas déjà dans l'orientation voulue
+  const rotate = forcedOrientation === 'landscape' ? deviceIsPortrait()
+               : forcedOrientation === 'portrait' ? !deviceIsPortrait() : false;
+  document.body.classList.toggle('rotated', rotate);
+  // Largeur réellement affichée (inversée quand l'affichage est pivoté)
+  const shownWidth = rotate ? window.innerHeight : window.innerWidth;
+  document.body.classList.toggle('wide', shownWidth >= 700);
+  document.body.classList.toggle('xwide', shownWidth >= 1000);
+}
+async function tryNativeLock(target) {
+  try {
+    if (!screen.orientation || !screen.orientation.lock) return false;
+    let wentFullscreen = false;
+    if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+      await document.documentElement.requestFullscreen();
+      wentFullscreen = true;
+    }
+    try {
+      await screen.orientation.lock(target);
+      return true;
+    } catch (e) {
+      if (wentFullscreen && document.exitFullscreen) { try { await document.exitFullscreen(); } catch (e2) {} }
+      return false;
+    }
+  } catch (e) { return false; }
+}
+async function toggleRotation() {
+  // Orientation actuellement affichée -> on demande l'autre
+  const showingPortrait = deviceIsPortrait() !== document.body.classList.contains('rotated');
+  const target = showingPortrait ? 'landscape' : 'portrait';
+  if (forcedOrientation === null && await tryNativeLock(target)) {
+    showFlash('Écran pivoté');
+    return;
+  }
+  // Repli : rotation de l'affichage dans la fenêtre du navigateur
+  // (on ne force que si l'appareil n'est pas déjà dans l'orientation voulue)
+  forcedOrientation = (target === 'landscape') === deviceIsPortrait() ? target : null;
+  try {
+    if (forcedOrientation) localStorage.setItem(ROTATE_KEY, forcedOrientation);
+    else localStorage.removeItem(ROTATE_KEY);
+  } catch (e) {}
+  applyRotation();
+  showFlash(forcedOrientation ? 'Affichage pivoté' : 'Affichage normal');
+}
+try { forcedOrientation = localStorage.getItem(ROTATE_KEY) || null; } catch (e) {}
+window.addEventListener('resize', applyRotation);
+window.addEventListener('orientationchange', () => setTimeout(applyRotation, 200));
+applyRotation();
+
 piInit();
 </script>
 </body>

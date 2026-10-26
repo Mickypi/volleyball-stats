@@ -22,7 +22,7 @@ Elle permet à un statisticien de saisir rapidement les actions des joueurs (ser
 - **Gestion des sets** — validation du score avec les règles officielles du volley (25 pts / 2 pts d'écart, tie-break à 15)
 - **Statistiques détaillées** — efficience par action et par joueur, récapitulatif global, rapport points/fautes
 - **Export PDF** — tableau de statistiques A4 paysage par set (payant via Pi)
-- **Sauvegarde des matchs** — jusqu'à 4 matchs sauvegardés localement, reprise possible à tout moment
+- **Sauvegarde des matchs** — jusqu'à 10 matchs sauvegardés localement, reprise possible à tout moment
 - **Édition en cours de match** — modification des noms, numéros et rôles des joueurs via le panneau paramètres ⚙️
 
 ---
