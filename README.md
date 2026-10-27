@@ -21,29 +21,18 @@ Elle permet à un statisticien de saisir rapidement les actions des joueurs (ser
 - **Substitutions** — panneau de changement de joueurs pendant le match
 - **Gestion des sets** — validation du score avec les règles officielles du volley (25 pts / 2 pts d'écart, tie-break à 15)
 - **Statistiques détaillées** — efficience par action et par joueur, récapitulatif global, rapport points/fautes
-- **Export PDF** — tableau de statistiques A4 paysage par set (payant via Pi)
+- **Rapports PDF** — téléchargement gratuit et direct dans l'appli : rapport par set (onglet Sets, fin de set) ou rapport complet du match (onglets Sets et Stats, fin de match)
 - **Sauvegarde des matchs** — jusqu'à 10 matchs sauvegardés localement, reprise possible à tout moment
 - **Édition en cours de match** — modification des noms, numéros et rôles des joueurs via le panneau paramètres ⚙️
-
----
-
-## 💰 Modèle de paiement Pi
-
-| Export | Coût |
-|--------|------|
-| PDF d'un set | 1 Pi |
-| PDF complet (tous les sets) | 2 Pi |
-
-Les paiements sont traités via le SDK Pi Network (U2A — User to App).
 
 ---
 
 ## 🛠️ Stack technique
 
 - **Frontend** : HTML5 / CSS3 / JavaScript vanilla — fichier unique `index.html`
-- **Backend** : Serverless Functions Node.js via Vercel (`/api/approve`, `/api/complete`)
+- **PDF** : généré sur l'appareil avec html2pdf.js (chargé depuis un CDN au premier rapport)
+- **Backend** : Serverless Functions Node.js via Vercel (`/api/complete`, pour finaliser d'anciens paiements Pi interrompus)
 - **Authentification** : Pi Network SDK v2.0
-- **Paiements** : Pi Network Payments API
 - **Stockage** : localStorage (données sur l'appareil)
 - **Hébergement** : Vercel
 

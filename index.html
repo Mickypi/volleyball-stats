@@ -315,7 +315,7 @@ body.rotated .modal-sheet,body.rotated .pay-modal,body.rotated .error-box{max-he
   <div class="splash-tagline">My Team Simple Stats</div>
   <button class="btn-new-match" onclick="goSetup()">🏐 Nouveau Match</button>
   <button class="btn-mes-matchs" onclick="showMesMatchs()">📋 Mes Matchs</button>
-  <div class="splash-version">v1.5</div>
+  <div class="splash-version">v1.6</div>
 </div>
 
 <!-- ÉCRAN MES MATCHS -->
@@ -441,7 +441,7 @@ body.rotated .modal-sheet,body.rotated .pay-modal,body.rotated .error-box{max-he
       <div id="sets-list-final" style="margin-bottom:16px"></div>
       <div id="stats-final"></div>
       <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
-        <button class="pdf-btn" onclick="openPayModal('all')">📧 Recevoir rapport complet — 2 Test-Pi</button>
+        <button class="pdf-btn" onclick="downloadReport('all')">📄 Télécharger le rapport complet (PDF)</button>
         <div id="sets-rapport-buttons"></div>
         <button class="btn btn-sm" style="border-color:#A32D2D;color:#A32D2D" onclick="resetMatch()">↺ Nouveau match</button>
       </div>
@@ -451,23 +451,16 @@ body.rotated .modal-sheet,body.rotated .pay-modal,body.rotated .error-box{max-he
 </div>
 </div>
 
-<!-- PAYMENT MODAL -->
-<div class="pay-modal-overlay" id="pay-modal">
+<!-- RAPPORT PDF -->
+<div class="pay-modal-overlay" id="report-modal">
   <div class="pay-modal">
-    <div class="pay-modal-icon">📧</div>
-    <div class="pay-modal-title" id="pay-modal-title">Exporter en PDF</div>
-    <div class="pay-modal-desc" id="pay-modal-desc">Les statistiques seront envoyées par email au format PDF.</div>
-    <div class="pay-modal-price" id="pay-modal-price">1 π Test-Pi</div>
-    <div style="margin-bottom:12px;text-align:left">
-      <label style="font-size:12px;color:#888;display:block;margin-bottom:5px">📧 Adresse email de réception</label>
-      <input type="email" id="pay-email" placeholder="votre@email.com" style="width:100%;height:40px;font-size:14px;border:0.5px solid rgba(0,0,0,0.2);border-radius:8px;padding:0 10px;font-family:inherit;background:#fff;color:#1a1a18">
-    </div>
-    <button class="pay-btn-pi" id="pay-btn" onclick="confirmPayment()">🟣 Payer avec Test-Pi</button>
-    <div style="display:flex;align-items:center;gap:8px;margin:8px 0"><div style="flex:1;height:0.5px;background:rgba(0,0,0,0.1)"></div><span style="font-size:11px;color:#aaa">ou</span><div style="flex:1;height:0.5px;background:rgba(0,0,0,0.1)"></div></div>
-    <button class="pay-btn-cancel" style="color:#185FA5;border-color:#185FA5;background:#E6F1FB" onclick="getFreeReport()">📧 Recevoir gratuitement (testeurs)</button>
-    <button class="pay-btn-cancel" onclick="closePayModal()">Annuler</button>
-    <div class="pay-status" id="pay-status"></div>
-    <div class="pay-error" id="pay-error"></div>
+    <div class="pay-modal-icon">📄</div>
+    <div class="pay-modal-title">Rapport PDF prêt</div>
+    <div class="pay-modal-desc" id="report-filename" style="word-break:break-all"></div>
+    <button class="pay-btn-pi" style="background:#185FA5" onclick="reportDownload()">⬇️ Télécharger</button>
+    <button class="pay-btn-cancel" id="report-share-btn" style="color:#185FA5;border-color:#185FA5;background:#E6F1FB;margin-top:8px" onclick="reportShare()">📤 Partager / Enregistrer</button>
+    <button class="pay-btn-cancel" style="margin-top:8px" onclick="reportOpen()">👁 Ouvrir le PDF</button>
+    <button class="pay-btn-cancel" style="margin-top:8px" onclick="closeReportModal()">Fermer</button>
   </div>
 </div>
 
@@ -825,16 +818,16 @@ function showEndSetActions(us,them){
   if(is3_0){
     html+='<div class="match-over-banner"><div class="match-over-trophy">🏆</div><div class="match-over-title">Match remporté par '+escHtml(winner)+' !</div><div class="match-over-score">'+wUs+' set'+(wUs>1?'s':'')+' – '+wThem+' set'+(wThem>1?'s':'')+'</div></div>';
     html+='<button class="modal-btn" onclick="doEndMatch()" style="background:#0F6E56;color:#E1F5EE">🏆 Terminer le match</button>';
-    html+='<button class="modal-btn" onclick="openPayModalFromEndSet('+S.cur+')" style="background:#6B21A8;color:#fff;font-size:13px">📧 Recevoir rapport de ce set — 1 Test-Pi</button>';
+    html+='<button class="modal-btn" onclick="downloadReport(\'set\','+S.cur+')" style="background:#6B21A8;color:#fff;font-size:13px">📄 Télécharger le rapport de ce set (PDF)</button>';
     html+='<button class="modal-btn" onclick="doNextSet()" style="background:#f0eeea;color:#444;font-size:13px">🤝 Continuer quand même (match amical)</button>';
   } else if(isMatchWon){
     html+='<div class="match-over-banner"><div class="match-over-trophy">🏆</div><div class="match-over-title">Match remporté par '+escHtml(winner)+' !</div><div class="match-over-score">'+wUs+' set'+(wUs>1?'s':'')+' – '+wThem+' set'+(wThem>1?'s':'')+'</div></div>';
     html+='<button class="modal-btn" onclick="doEndMatch()" style="background:#854F0B;color:#FAEEDA">🏆 Terminer le match</button>';
-    html+='<button class="modal-btn" onclick="openPayModalFromEndSet('+S.cur+')" style="background:#6B21A8;color:#fff;font-size:13px">📧 Recevoir rapport de ce set — 1 Test-Pi</button>';
+    html+='<button class="modal-btn" onclick="downloadReport(\'set\','+S.cur+')" style="background:#6B21A8;color:#fff;font-size:13px">📄 Télécharger le rapport de ce set (PDF)</button>';
     html+='<button class="modal-btn" onclick="closeScoreModal()" style="background:#f0eeea;color:#888">Annuler</button>';
   } else {
     html+='<button class="modal-btn" onclick="doNextSet()" style="background:#185FA5;color:#E6F1FB">→ Passer au set suivant</button>';
-    html+='<button class="modal-btn" onclick="openPayModalFromEndSet('+S.cur+')" style="background:#6B21A8;color:#fff;font-size:13px">📧 Recevoir rapport de ce set — 1 Test-Pi</button>';
+    html+='<button class="modal-btn" onclick="downloadReport(\'set\','+S.cur+')" style="background:#6B21A8;color:#fff;font-size:13px">📄 Télécharger le rapport de ce set (PDF)</button>';
     if(S.cur>=2)html+='<button class="modal-btn" onclick="doEndMatch()" style="background:#854F0B;color:#FAEEDA;font-size:13px">🏆 Terminer le match quand même</button>';
     html+='<button class="modal-btn" onclick="closeScoreModal()" style="background:#f0eeea;color:#888">Annuler</button>';
   }
@@ -850,13 +843,6 @@ function confirmScoreModal(){
   showEndSetActions(us,them);
   saveCurrentMatch(); // sauvegarde auto
 }
-function openPayModalFromEndSet(setIdx) {
-  // Fermer la modale score d'abord puis ouvrir le paiement
-  document.getElementById('score-modal').classList.remove('active');
-  document.getElementById('tab-saisie').style.display='block';
-  setTimeout(() => openPayModal('set', setIdx), 150);
-}
-
 function doNextSet(){
   document.getElementById('score-modal').classList.remove('active');
   S.sets.push({us:null,them:null,log:S.players.map(()=>mkLog())});
@@ -927,7 +913,10 @@ function renderStats(){
     '<button class="fbtn'+(S.statsFilter==='all'?' active':'')+'" onclick="S.statsFilter=\'all\';renderStats()">Tous les sets</button>'
     +allSets.map((s,i)=>'<button class="fbtn'+(S.statsFilter===i?' active':'')+'" onclick="S.statsFilter='+i+';renderStats()">Set '+(i+1)+(s.us===null?' ●':'')+'</button>').join('');
   const su=S.statsFilter==='all'?allSets:[allSets[S.statsFilter]];
-  document.getElementById('stats-content').innerHTML=buildStatsHTML(aggregateStats(su));
+  document.getElementById('stats-content').innerHTML=buildStatsHTML(aggregateStats(su))
+    +(S.statsFilter==='all'
+      ?'<button class="pdf-btn" onclick="downloadReport(\'all\')">📄 Télécharger le rapport complet (PDF)</button>'
+      :'<button class="pdf-btn" onclick="downloadReport(\'set\','+S.statsFilter+')">📄 Télécharger le rapport du set '+(S.statsFilter+1)+' (PDF)</button>');
 }
 
 /* ---- FIN DE MATCH ---- */
@@ -942,7 +931,7 @@ function showEndMatch(){
   document.getElementById('winner-block').innerHTML='<div class="winner-banner"><div style="font-size:13px;color:#0F6E56">Vainqueur du match</div><div style="font-size:22px;font-weight:600;color:#085041;margin-top:4px">🏆 '+escHtml(winner)+'</div><div style="font-size:13px;color:#0F6E56;margin-top:6px">'+escHtml(S.teamName)+' <strong>'+wU+'</strong> – <strong>'+wT+'</strong> '+escHtml(S.teamAdverse)+'</div></div>';
   document.getElementById('sets-list-final').innerHTML=done.map((s,i)=>{const w=s.us>s.them?S.teamName:s.them>s.us?S.teamAdverse:'Égalité';return'<div class="set-row"><div><div style="font-weight:500">Set '+(i+1)+(i>=4?' 🏆':'')+'</div><div style="font-size:12px;color:#888">'+(w!=='Égalité'?'Gagné : '+w:'Égalité')+'</div></div><div style="font-size:22px;font-weight:600">'+s.us+' – '+s.them+'</div></div>';}).join('');
   // Boutons rapport par set
-  document.getElementById('sets-rapport-buttons').innerHTML=done.map((s,i)=>'<button class="pdf-btn" style="background:#6B21A8;font-size:13px" onclick="openPayModal(\'set\','+i+')">📧 Rapport Set '+(i+1)+' — 1 Test-Pi</button>').join('');
+  document.getElementById('sets-rapport-buttons').innerHTML=done.map((s,i)=>'<button class="pdf-btn" style="background:#6B21A8;font-size:13px" onclick="downloadReport(\'set\','+i+')">📄 Rapport Set '+(i+1)+' (PDF)</button>').join('');
   document.getElementById('stats-final').innerHTML=buildStatsHTML(aggregateStats(S.sets));
 }
 function showTab(tab){
@@ -958,9 +947,10 @@ function renderSets(){
     return'<div class="set-row"><div><div style="font-weight:500">Set '+(i+1)+(i>=4?' 🏆':'')+'</div><div style="font-size:12px;color:#888">'+(win!=='Égalité'?'Gagné : '+win:'Égalité')+'</div></div>'
       +'<div class="set-actions"><div style="font-size:22px;font-weight:600">'+s.us+' – '+s.them+'</div>'
       +'<button class="edit-set-btn" onclick="openScoreModal(\'edit\','+i+')" title="Modifier">✏️</button>'
-      +'<button class="btn btn-sm" onclick="openPayModal(\'set\','+i+')" style="font-size:11px;padding:5px 9px;border-color:#6B21A8;color:#6B21A8" title="Rapport par email">📧 1π</button>'
+      +'<button class="btn btn-sm" onclick="downloadReport(\'set\','+i+')" style="font-size:11px;padding:5px 9px;border-color:#6B21A8;color:#6B21A8" title="Télécharger le rapport PDF du set">📄 PDF</button>'
       +'</div></div>';
-  }).join('');
+  }).join('')
+    +'<button class="pdf-btn" onclick="downloadReport(\'all\')">📄 Rapport complet du match (PDF)</button>';
 }
 
 /* ---- PDF — 3 TABLEAUX PAR PAGE ---- */
@@ -1146,71 +1136,124 @@ function buildMatchSummaryPage(sets){
     .replace(S.teamName+' vs '+S.teamAdverse+'</div></div>',S.teamName+' vs '+S.teamAdverse+' &nbsp;|&nbsp; '+setScores+'</div></div>');
 }
 
-function openPDFWindow(html, filename) {
-  try {
-    const blob = new Blob([html], {type: 'text/html'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename || 'stats-volley.html';
-    a.target = '_blank'; // ouvre dans un nouvel onglet sans quitter l'app
-    a.rel = 'noopener noreferrer';
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }, 2000);
-    showFlash('📄 PDF téléchargé !');
-  } catch(e) {
-    showFlash('⚠️ Erreur lors du téléchargement : ' + e.message);
-  }
-}
-function exportPDF(){
-  const done=S.sets.filter(s=>s.us!==null),sets=done.length>0?done:S.sets;
-  const filename='stats-'+S.teamName+'-vs-'+S.teamAdverse+'.html';
-  const pages=sets.map((set,i)=>buildSetPDFPage(i,set)).join('')+buildMatchSummaryPage(sets);
-  openPDFWindow('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Stats — '+S.teamName+' vs '+S.teamAdverse+'</title><style>@page{size:A4 portrait;margin:8mm}body{margin:0;padding:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}</style></head><body>'+pages+'<script>window.onload=function(){window.print()}<\/script></body></html>', filename);
-}
-function exportSetPDF(i){
-  const filename='stats-set'+(i+1)+'-'+S.teamName+'-vs-'+S.teamAdverse+'.html';
-  openPDFWindow('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Set '+(i+1)+' — '+S.teamName+' vs '+S.teamAdverse+'</title><style>@page{size:A4 portrait;margin:8mm}body{margin:0;padding:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}</style></head><body>'+buildSetPDFPage(i,S.sets[i])+'<script>window.onload=function(){window.print()}<\/script></body></html>', filename);
+/* ---- RAPPORTS PDF — téléchargement direct dans l'appli ---- */
+const PDF_LIB_URLS = [
+  'https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'
+];
+let pdfLibPromise = null;
+let reportBusy = false;
+let reportReady = null; // { blob, url, filename }
+
+// Charge la bibliothèque PDF seulement au premier rapport demandé
+function loadPdfLib() {
+  if (window.html2pdf) return Promise.resolve();
+  if (pdfLibPromise) return pdfLibPromise;
+  pdfLibPromise = (async () => {
+    for (const url of PDF_LIB_URLS) {
+      try {
+        await new Promise((ok, ko) => {
+          const s = document.createElement('script');
+          s.src = url; s.onload = ok;
+          s.onerror = () => { s.remove(); ko(); };
+          document.head.appendChild(s);
+        });
+        if (window.html2pdf) return;
+      } catch (e) {}
+    }
+    pdfLibPromise = null;
+    throw new Error('Impossible de charger le générateur PDF. Vérifie ta connexion internet.');
+  })();
+  return pdfLibPromise;
 }
 
-// Rapport gratuit pour testeurs sans wallet TestNet activé
-function getFreeReport() {
-  const email = document.getElementById('pay-email').value.trim();
-  if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    document.getElementById('pay-error').textContent='Veuillez saisir une adresse email valide.';
-    document.getElementById('pay-error').classList.add('show');
-    return;
-  }
-  localStorage.setItem('volleyball_user_email', email);
-  closePayModal();
-  setPayStatus('');
-  // Générer et envoyer directement sans paiement
-  const isFull = pendingPDF.type === 'all';
-  sendFreeReportByEmail(email, isFull, pendingPDF.setIdx);
+function reportFileName(type, setIdx) {
+  const clean = t => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'equipe';
+  const base = 'Stats-Volley_' + clean(S.teamName) + '-vs-' + clean(S.teamAdverse);
+  return base + (type === 'all' ? '_Match-complet' : '_Set' + (setIdx + 1)) + '.pdf';
 }
 
-async function sendFreeReportByEmail(email, isFull, setIdx) {
-  showFlash('📧 Envoi du rapport en cours...');
-  const done=S.sets.filter(s=>s.us!==null);
-  const sets=isFull?(done.length>0?done:S.sets):[S.sets[setIdx]];
-  const setIndices=isFull?sets.map((_,i)=>i):[setIdx];
-  const pages=sets.map((set,i)=>buildSetPDFPage(setIndices[i],set)).join('')+(isFull?buildMatchSummaryPage(sets):'');
-  const pdfHtml='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Stats</title>'
-    +'<style>@page{size:A4 portrait;margin:8mm}body{margin:0;padding:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}</style>'
-    +'</head><body>'+pages+'</body></html>';
-  const subject=isFull?'Stats match complet — '+S.teamName+' vs '+S.teamAdverse:'Stats Set '+(setIdx+1)+' — '+S.teamName+' vs '+S.teamAdverse;
+// Pages HTML du rapport : un set, ou tous les sets joués + récapitulatif du match
+function buildReportPages(type, setIdx) {
+  if (type === 'set') return buildSetPDFPage(setIdx, S.sets[setIdx]);
+  const played = S.sets.map((set, i) => ({ set, i }))
+    .filter(x => x.set.us !== null || x.set.log.some(pl => CATS.some(c => (pl[c] || []).length)));
+  const list = played.length ? played : S.sets.map((set, i) => ({ set, i }));
+  return list.map(x => buildSetPDFPage(x.i, x.set)).join('') + buildMatchSummaryPage(list.map(x => x.set));
+}
+
+async function downloadReport(type, setIdx) {
+  if (reportBusy) return;
+  reportBusy = true;
+  showFlash('📄 Préparation du PDF...');
+  let holder = null;
   try {
-    const res=await fetch(BACKEND+'/api/send-pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,subject,pdfHtml,teamName:S.teamName,teamAdverse:S.teamAdverse,isFull,setIdx})});
-    if(!res.ok)throw new Error('Erreur envoi');
-    showFlash('📧 Rapport envoyé à '+email+' !');
-  } catch(e){
-    showFlash('⚠️ Erreur envoi : '+e.message);
+    await loadPdfLib();
+    const filename = reportFileName(type, setIdx);
+    // Conteneur hors écran ; le contenu (cloné par html2pdf) n'a pas de position propre
+    holder = document.createElement('div');
+    holder.style.cssText = 'position:fixed;left:-10000px;top:0';
+    const content = document.createElement('div');
+    content.style.cssText = 'width:740px;background:#fff;color:#1a1a18';
+    content.innerHTML = buildReportPages(type, setIdx);
+    // Pas de page blanche après la dernière page
+    const pages = content.children;
+    if (pages.length) pages[pages.length - 1].style.pageBreakAfter = 'auto';
+    holder.appendChild(content);
+    // L'affichage pivoté (bouton ⟳) fausserait la capture : on le suspend le temps de la génération
+    document.body.classList.remove('rotated');
+    document.body.appendChild(holder);
+    const blob = await html2pdf().set({
+      margin: [8, 8, 8, 8],
+      filename,
+      image: { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 2, backgroundColor: '#ffffff', useCORS: true, scrollX: 0, scrollY: 0 },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'legacy'] }
+    }).from(content).outputPdf('blob');
+    showReportReady(blob, filename);
+  } catch (e) {
+    showFlash('⚠️ ' + (e && e.message ? e.message : 'Erreur lors de la création du PDF'));
+  } finally {
+    if (holder) holder.remove();
+    applyRotation();
+    reportBusy = false;
   }
+}
+
+function showReportReady(blob, filename) {
+  if (reportReady) URL.revokeObjectURL(reportReady.url);
+  reportReady = { blob, filename, url: URL.createObjectURL(blob) };
+  document.getElementById('report-filename').textContent = filename;
+  let canShare = false;
+  try { canShare = !!(navigator.canShare && navigator.canShare({ files: [new File([blob], filename, { type: 'application/pdf' })] })); } catch (e) {}
+  document.getElementById('report-share-btn').style.display = canShare ? '' : 'none';
+  document.getElementById('report-modal').classList.add('active');
+}
+function closeReportModal() {
+  document.getElementById('report-modal').classList.remove('active');
+}
+function reportDownload() {
+  if (!reportReady) return;
+  const a = document.createElement('a');
+  a.href = reportReady.url; a.download = reportReady.filename;
+  a.style.display = 'none';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => a.remove(), 1000);
+  showFlash('📄 PDF téléchargé');
+}
+async function reportShare() {
+  if (!reportReady) return;
+  try {
+    await navigator.share({ files: [new File([reportReady.blob], reportReady.filename, { type: 'application/pdf' })], title: reportReady.filename });
+  } catch (e) {
+    if (e && e.name !== 'AbortError') showFlash('⚠️ Partage impossible sur cet appareil');
+  }
+}
+function reportOpen() {
+  if (!reportReady) return;
+  const w = window.open(reportReady.url, '_blank');
+  if (!w) showFlash('⚠️ Ouverture bloquée par le navigateur');
 }
 
 /* ---- RESET ---- */
@@ -1545,143 +1588,9 @@ function showAuthError(msg) { const el=document.getElementById('pi-auth-error');
 function hideAuthError() { document.getElementById('pi-auth-error').classList.remove('show'); }
 
 /* ============================================================
-   PI PAYMENTS
+   PI — paiements interrompus (les rapports sont désormais gratuits)
    ============================================================ */
 const BACKEND = 'https://volleyball-stats-five.vercel.app';
-let pendingPDF = { type: null, setIdx: null }; // ce qu'on veut exporter après paiement
-
-function openPayModal(type, setIdx) {
-  pendingPDF = { type, setIdx: setIdx != null ? setIdx : null };
-  const isFull = type === 'all';
-  document.getElementById('pay-modal-title').textContent = isFull ? 'PDF complet — tous les sets' : 'PDF — Set ' + (setIdx + 1);
-  document.getElementById('pay-modal-desc').textContent = isFull
-    ? 'Exporter les statistiques complètes du match en PDF'
-    : 'Exporter les statistiques du set ' + (setIdx + 1) + ' en PDF';
-  document.getElementById('pay-modal-price').textContent = isFull ? '2 π Test-Pi' : '1 π Test-Pi';
-  document.getElementById('pay-btn').disabled = false;
-  document.getElementById('pay-status').textContent = '';
-  document.getElementById('pay-error').classList.remove('show');
-  // Pré-remplir l'email mémorisé
-  const savedEmail = localStorage.getItem('volleyball_user_email') || '';
-  document.getElementById('pay-email').value = savedEmail;
-  document.getElementById('pay-modal').classList.add('active');
-}
-
-function closePayModal() {
-  document.getElementById('pay-modal').classList.remove('active');
-}
-
-async function confirmPayment() {
-  const isFull = pendingPDF.type === 'all';
-  const amount = isFull ? 2 : 1;
-  const memo = isFull ? 'PDF complet match volley' : 'PDF set ' + (pendingPDF.setIdx + 1) + ' volley';
-  const metadata = { type: pendingPDF.type, setIdx: pendingPDF.setIdx, user: piUser ? piUser.username : '' };
-
-  // Valider l'email
-  const email = document.getElementById('pay-email').value.trim();
-  if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    showPayError('Veuillez saisir une adresse email valide.');
-    return;
-  }
-  // Mémoriser l'email pour la prochaine fois
-  localStorage.setItem('volleyball_user_email', email);
-
-  document.getElementById('pay-btn').disabled = true;
-  document.getElementById('pay-error').classList.remove('show');
-  setPayStatus('Initialisation du paiement...');
-
-  try {
-    await Pi.createPayment({
-      amount,
-      memo,
-      metadata
-    }, {
-      onReadyForServerApproval: async (paymentId) => {
-        console.log('onReadyForServerApproval reçu, paymentId:', paymentId);
-        setPayStatus('Approbation en cours...');
-        try {
-          const res = await fetch(BACKEND + '/api/approve', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ paymentId })
-          });
-          const data = await res.json();
-          console.log('Approve result:', res.status, data);
-          if (!res.ok) throw new Error('Approbation échouée : ' + JSON.stringify(data));
-        } catch(e) {
-          showPayError('Erreur lors de l\'approbation : ' + e.message);
-          document.getElementById('pay-btn').disabled = false;
-        }
-      },
-      onReadyForServerCompletion: async (paymentId, txid) => {
-        setPayStatus('Finalisation du paiement...');
-        try {
-          const res = await fetch(BACKEND + '/api/complete', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ paymentId, txid })
-          });
-          if (!res.ok) throw new Error('Complétion échouée');
-          // Paiement confirmé → générer et envoyer le PDF par email
-          setPayStatus('Génération et envoi du PDF...');
-          await sendPDFByEmail(email, isFull, pendingPDF.setIdx);
-        } catch(e) {
-          showPayError('Erreur lors de la finalisation : ' + e.message);
-          document.getElementById('pay-btn').disabled = false;
-        }
-      },
-      onCancel: (paymentId) => {
-        setPayStatus('');
-        showPayError('Paiement annulé.');
-        document.getElementById('pay-btn').disabled = false;
-      },
-      onError: (error, payment) => {
-        setPayStatus('');
-        showPayError('Erreur Pi : ' + (error.message || error));
-        document.getElementById('pay-btn').disabled = false;
-      }
-    });
-  } catch(e) {
-    setPayStatus('');
-    showPayError('Erreur : ' + e.message);
-    document.getElementById('pay-btn').disabled = false;
-  }
-}
-
-async function sendPDFByEmail(email, isFull, setIdx) {
-  try {
-    // Générer le HTML du PDF
-    const done = S.sets.filter(s=>s.us!==null);
-    const sets = isFull ? (done.length>0?done:S.sets) : [S.sets[setIdx]];
-    const setIndices = isFull ? sets.map((_,i)=>i) : [setIdx];
-    const pages=sets.map((set,i)=>buildSetPDFPage(setIndices[i],set)).join('')+(isFull?buildMatchSummaryPage(sets):'');
-    const pdfHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Stats — '+S.teamName+' vs '+S.teamAdverse+'</title>'
-      +'<style>@page{size:A4 portrait;margin:8mm}body{margin:0;padding:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}</style>'
-      +'</head><body>'+pages+'</body></html>';
-
-    const subject = isFull
-      ? 'Stats match complet — ' + S.teamName + ' vs ' + S.teamAdverse
-      : 'Stats Set ' + (setIdx+1) + ' — ' + S.teamName + ' vs ' + S.teamAdverse;
-
-    const res = await fetch(BACKEND + '/api/send-pdf', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, subject, pdfHtml, teamName: S.teamName, teamAdverse: S.teamAdverse, isFull, setIdx })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Erreur envoi email');
-
-    setPayStatus('✅ PDF envoyé à ' + email + ' !');
-    setTimeout(() => {
-      closePayModal();
-      showFlash('📧 PDF envoyé par email !');
-    }, 2000);
-  } catch(e) {
-    showPayError('Paiement OK mais erreur envoi email : ' + e.message);
-    document.getElementById('pay-btn').disabled = false;
-  }
-}
-
 async function onIncompletePaymentFound(payment) {
   // Compléter un paiement en cours interrompu
   console.log('Paiement incomplet trouvé, complétion en cours :', payment.identifier);
@@ -1695,9 +1604,6 @@ async function onIncompletePaymentFound(payment) {
     console.warn('Impossible de compléter le paiement incomplet :', e.message);
   }
 }
-
-function setPayStatus(msg) { document.getElementById('pay-status').textContent = msg; }
-function showPayError(msg) { const el = document.getElementById('pay-error'); el.textContent = msg; el.classList.add('show'); }
 
 // Démarrage
 /* ============================================================
