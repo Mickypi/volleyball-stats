@@ -234,6 +234,14 @@ body.rotated .modal-sheet,body.rotated .pay-modal,body.rotated .error-box{max-he
 <body>
 
 <button id="rotate-btn" class="rotate-btn" onclick="toggleRotation()" title="Pivoter l'écran" aria-label="Pivoter l'écran">⟳</button>
+<!-- ÉCRAN RAPPORT (ouvert depuis le Pi Browser dans le navigateur du téléphone) -->
+<div id="screen-report" class="screen" style="min-height:100vh;padding:40px 24px;text-align:center;background:linear-gradient(160deg,#EEF4FB 0%,#f5f5f0 60%)">
+  <img src="Logo_Appli_Volley.png" class="splash-logo" alt="logo" onerror="this.style.display='none'">
+  <div style="font-size:18px;font-weight:600;margin:16px 0 6px">📄 Rapport PDF</div>
+  <div id="report-mode-teams" style="font-size:14px;color:#666;margin-bottom:24px">Préparation...</div>
+  <button class="btn-new-match" id="report-mode-btn" style="display:none">📄 Générer le PDF à nouveau</button>
+  <div style="font-size:12px;color:#999;margin-top:20px;line-height:1.5">Une fois le PDF téléchargé, tu peux fermer cet onglet et revenir au Pi Browser.</div>
+</div>
 <div class="flash" id="flash"></div>
 
 <!-- PI AUTH SCREEN -->
@@ -315,7 +323,7 @@ body.rotated .modal-sheet,body.rotated .pay-modal,body.rotated .error-box{max-he
   <div class="splash-tagline">My Team Simple Stats</div>
   <button class="btn-new-match" onclick="goSetup()">🏐 Nouveau Match</button>
   <button class="btn-mes-matchs" onclick="showMesMatchs()">📋 Mes Matchs</button>
-  <div class="splash-version">v1.6</div>
+  <div class="splash-version">v1.7</div>
 </div>
 
 <!-- ÉCRAN MES MATCHS -->
@@ -1185,6 +1193,8 @@ function buildReportPages(type, setIdx) {
 async function downloadReport(type, setIdx) {
   if (reportBusy) return;
   reportBusy = true;
+  // Dans le Pi Browser, le PDF est généré dans le navigateur du téléphone
+  if (await openReportInSystemBrowser(type, setIdx)) { reportBusy = false; return; }
   showFlash('📄 Préparation du PDF...');
   let holder = null;
   try {
@@ -1254,6 +1264,81 @@ function reportOpen() {
   if (!reportReady) return;
   const w = window.open(reportReady.url, '_blank');
   if (!w) showFlash('⚠️ Ouverture bloquée par le navigateur');
+}
+
+/* ---- Pi Browser : il bloque les téléchargements, donc le rapport est ouvert
+   dans le navigateur du téléphone (Chrome, Safari...) via Pi.openUrlInSystemBrowser.
+   Les données du rapport voyagent compressées dans l'URL (après le #, jamais envoyées au serveur). ---- */
+const GRADE_CODES = { '++': 'a', '+': 'b', '0': 'c', '-': 'd' };
+const GRADE_FROM_CODE = { a: '++', b: '+', c: '0', d: '-' };
+
+function b64urlEncode(bytes) {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function b64urlDecode(str) {
+  const bin = atob(str.replace(/-/g, '+').replace(/_/g, '/'));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+async function streamBytes(bytes, stream) {
+  return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer());
+}
+
+async function packReport(type, setIdx) {
+  const data = {
+    t: type, i: setIdx, a: S.teamName, b: S.teamAdverse,
+    p: S.players.map(p => [p.num, p.name, p.role]),
+    s: S.sets.map(s => [s.us, s.them, s.log.map(l => CATS.map(c => (l[c] || []).map(g => GRADE_CODES[g] || 'c').join('')))])
+  };
+  const raw = new TextEncoder().encode(JSON.stringify(data));
+  if (window.CompressionStream) return 'z' + b64urlEncode(await streamBytes(raw, new CompressionStream('deflate-raw')));
+  return 'j' + b64urlEncode(raw);
+}
+async function unpackReport(str) {
+  const bytes = b64urlDecode(str.slice(1));
+  const raw = str[0] === 'z' ? await streamBytes(bytes, new DecompressionStream('deflate-raw')) : bytes;
+  const d = JSON.parse(new TextDecoder().decode(raw));
+  S.teamName = d.a; S.teamAdverse = d.b;
+  S.players = d.p.map(([num, name, role]) => ({ num, name, role }));
+  S.sets = d.s.map(([us, them, log]) => ({
+    us, them,
+    log: log.map(cats => { const l = mkLog(); CATS.forEach((c, k) => { l[c] = (cats[k] || '').split('').map(x => GRADE_FROM_CODE[x]); }); return l; })
+  }));
+  return { type: d.t, setIdx: d.i };
+}
+
+// Renvoie true si le rapport a été ouvert dans le navigateur du téléphone
+async function openReportInSystemBrowser(type, setIdx) {
+  if (!piUser || !window.Pi || typeof Pi.openUrlInSystemBrowser !== 'function') return false;
+  try {
+    const url = location.origin + location.pathname + '#report=' + await packReport(type, setIdx);
+    await Pi.openUrlInSystemBrowser(url);
+    showFlash('📄 Rapport ouvert dans le navigateur du téléphone');
+    return true;
+  } catch (e) {
+    if (e && e.message === 'No minimal requirements') showFlash('⚠️ Mets à jour le Pi Browser pour télécharger les rapports');
+    return false;
+  }
+}
+
+// Page ouverte dans le navigateur du téléphone avec #report=... : on génère directement le PDF
+async function startReportMode() {
+  document.getElementById('pi-auth-screen').classList.remove('active');
+  document.getElementById('screen-report').classList.add('active');
+  try {
+    const job = await unpackReport(location.hash.slice('#report='.length));
+    document.getElementById('report-mode-teams').textContent = S.teamName + ' vs ' + S.teamAdverse
+      + (job.type === 'all' ? ' — match complet' : ' — set ' + (job.setIdx + 1));
+    const btn = document.getElementById('report-mode-btn');
+    btn.onclick = () => downloadReport(job.type, job.setIdx);
+    btn.style.display = '';
+    downloadReport(job.type, job.setIdx);
+  } catch (e) {
+    document.getElementById('report-mode-teams').textContent = '⚠️ Lien de rapport invalide ou incomplet.';
+  }
 }
 
 /* ---- RESET ---- */
@@ -1667,7 +1752,8 @@ window.addEventListener('resize', applyRotation);
 window.addEventListener('orientationchange', () => setTimeout(applyRotation, 200));
 applyRotation();
 
-piInit();
+if (location.hash.indexOf('#report=') === 0) startReportMode();
+else piInit();
 </script>
 </body>
 </html>
